@@ -15,7 +15,7 @@ It consists of a basic SoC that includes one instance of `eurorack-pmod` that we
 ```
 <from this repository>
 git submodule update --init --recursive
-python3 example-colorlight-i5.py --cpu-type vexriscv --cpu-variant imac --csr-svd build/csr.svd --build
+python3 example-colorlight-i5.py --ecppack-compress --cpu-type vexriscv --cpu-variant imac --csr-svd build/csr.svd --build
 ```
 
 The bitstream is built in CI inside `.github/workflows/main.yml`, it may be useful to look at if you are missing some dependencies.
