@@ -189,6 +189,10 @@ def check_make(args):
     return check_cmd(args, "make", "GNU Make")
 
 def check_riscv(args):
+    xpm_riscv = check_cmd(args, "riscv-none-elf-gcc", "xPack GNU RISC-V Embedded GCC", "install it from https://xpack.github.io/dev-tools/riscv-none-elf-gcc/install/")
+    if xpm_riscv[0] == True:
+        return xpm_riscv
+
     riscv64 = check_cmd(args, "riscv64-unknown-elf-gcc", "riscv toolchain", "download it from https://www.sifive.com/boards/")
     if riscv64[0] == True:
         return riscv64
@@ -197,12 +201,7 @@ def check_riscv(args):
     if riscv32[0] == True:
         return riscv32
 
-    # See https://xpack.github.io/riscv-none-embed-gcc/#riscv64-unknown-elf-gcc
-    xpm_riscv = check_cmd(args, "riscv-none-embed-gcc", "xPack GNU RISC-V Embedded GCC", "install it from https://xpack.github.io/riscv-none-embed-gcc/install/")
-    if xpm_riscv[0] == True:
-        return xpm_riscv
-
-    return riscv64
+    return xpm_riscv
 
 def check_yosys(args):
     return check_cmd(args, "yosys")

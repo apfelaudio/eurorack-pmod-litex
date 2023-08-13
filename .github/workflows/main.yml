@@ -8,5 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: YosysHQ/setup-oss-cad-suite@v2
+      - uses: gregdavill/setup-riscv-gnu-toolchain@v2
+      - run: riscv-none-elf-gcc --version
       - run: git submodule update --init --recursive
       - run: python3 eurorack-pmod-litex.py --build
