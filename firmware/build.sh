@@ -10,7 +10,7 @@ FW_ROOT=`pwd`
 
 # Generate the Rust CSR bindings spat out by the LiteX SOC generated.
 cd $FW_ROOT/litex-pac/src
-~/.cargo/bin/svd2rust -i $BUILD_DIR/csr.svd --target riscv
+svd2rust -i $BUILD_DIR/csr.svd --target riscv
 
 # Build the firmware .elf file
 cd $FW_ROOT/litex-fw
