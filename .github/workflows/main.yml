@@ -22,6 +22,9 @@ jobs:
       - run: python3 example-colorlight-i5.py --cpu-type vexriscv --cpu-variant imac --csr-svd build/csr.svd --build
       - uses: actions/upload-artifact@v3
         with:
-          path: |
-            build/csr.svd
-            build/colorlight_i5/gateware/colorlight_i5.bit
+          name: colorlight-i5-bitstream.bit
+          path: build/colorlight_i5/gateware/colorlight_i5.bit
+      - uses: actions/upload-artifact@v3
+        with:
+          name: colorlight-i5-csr.svd
+          path: build/csr.svd
