@@ -1,0 +1,19 @@
+[package]
+name = "litex-fw"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+riscv = "*"
+riscv-rt = "*"
+panic-halt = "*"
+litex-hal = { path = "../deps/rust-litex-hal" }
+litex-pac = { path = "../litex-pac", features = ["rt"] }
+defmt = "0.3.4"
+embedded-midi = { path = "../deps/embedded-midi" }
+micromath = "2.0.0"
+midi-types = "0.1.7"
+seq-macro = "0.3.5"
+paste = "1.0.14"
