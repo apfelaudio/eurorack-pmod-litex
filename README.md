@@ -19,3 +19,9 @@ python3 example-colorlight-i5.py --cpu-type vexriscv --cpu-variant imac --csr-sv
 ```
 
 The bitstream is built in CI inside `.github/workflows/main.yml`, it may be useful to look at if you are missing some dependencies.
+
+# Flashing
+
+```
+openFPGALoader -b colorlight-i5 -f build/colorlight_i5/gateware/colorlight_i5.bit
+```
