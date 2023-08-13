@@ -15,6 +15,7 @@ jobs:
             components: rustfmt, clippy
             target: riscv32imac-unknown-none-elf
       - run: cargo install svd2rust
+      - run: cargo install cargo-binutils
       - run: svd2rust --version
       - uses: gregdavill/setup-riscv-gnu-toolchain@v2
       - run: riscv-none-elf-gcc --version

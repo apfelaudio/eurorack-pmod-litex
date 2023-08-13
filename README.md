@@ -1,13 +1,22 @@
 # `eurorack-pmod` LiteX examples
 
-Basic example of using `eurorack-pmod` inside a LiteX environment.
+Basic example of using `eurorack-pmod` inside a LiteX environment firmware written in Rust.
 
 It consists of a basic SoC that includes one instance of `eurorack-pmod` working alongside a soft RISCV CPU. Currently only tested on Colorlight i5 but should be quite easy to port to other ECP5 boards.
 
 # Dependencies
 
+For building the bitstream and LiteX BIOS:
 - [oss-cad-suite](https://github.com/YosysHQ/oss-cad-suite-build)
 - [RISCV toolchain](https://xpack.github.io/dev-tools/riscv-none-elf-gcc/install/)
+
+For building the firmware:
+- Rust toolchain with some extras:
+    - `rustup target add riscv32imac-unknown-elf`
+    - `cargo install svd2rust`
+    - `cargo install cargo-binutils`
+
+The bitstream and firmware are built in CI inside `.github/workflows/main.yml`, it may be useful to look at if you are missing some dependencies.
 
 # Building a bitstream
 
@@ -17,8 +26,6 @@ It consists of a basic SoC that includes one instance of `eurorack-pmod` working
 git submodule update --init --recursive
 python3 example-colorlight-i5.py --ecppack-compress --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --build
 ```
-
-The bitstream is built in CI inside `.github/workflows/main.yml`, it may be useful to look at if you are missing some dependencies.
 
 # Flashing the bitstream
 
