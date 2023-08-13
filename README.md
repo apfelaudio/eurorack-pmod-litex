@@ -14,7 +14,6 @@ For building the firmware:
 - Rust toolchain with some extras:
     - `rustup target add riscv32imac-unknown-elf`
     - `cargo install svd2rust`
-    - `cargo install cargo-binutils`
 
 The bitstream and firmware are built in CI inside `.github/workflows/main.yml`, it may be useful to look at if you are missing some dependencies.
 
