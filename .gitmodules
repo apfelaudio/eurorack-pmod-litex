@@ -1,3 +1,27 @@
 [submodule "deps/eurorack-pmod"]
 	path = deps/eurorack-pmod
 	url = https://github.com/apfelaudio/eurorack-pmod
+[submodule "deps/migen"]
+	path = deps/migen
+	url = https://github.com/m-labs/migen.git
+[submodule "deps/litex"]
+	path = deps/litex
+	url = https://github.com/enjoy-digital/litex.git
+[submodule "deps/litedram"]
+	path = deps/litedram
+	url = https://github.com/enjoy-digital/litedram.git
+[submodule "deps/litex_boards"]
+	path = deps/litex_boards
+	url = https://github.com/litex-hub/litex-boards.git
+[submodule "deps/litespi"]
+	path = deps/litespi
+	url = https://github.com/litex-hub/litespi
+[submodule "deps/pythondata-cpu-vexriscv"]
+	path = deps/pythondata-cpu-vexriscv
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv.git
+[submodule "deps/pythondata-software-picolibc"]
+	path = deps/pythondata-software-picolibc
+	url = https://github.com/litex-hub/pythondata-software-picolibc.git
+[submodule "deps/pythondata-software-compiler_rt"]
+	path = deps/pythondata-software-compiler_rt
+	url = https://github.com/litex-hub/pythondata-software-compiler_rt.git

@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
 
-#
-# This file is part of LiteX-Boards.
-#
-# Copyright (c) 2021 Kazumoto Kojima <kkojima@rr.iij4u.or.jp>
-# SPDX-License-Identifier: BSD-2-Clause
+# This variable defines all the external programs that this module
+# relies on.  lxbuildenv reads this variable in order to ensure
+# the build will finish without exiting due to missing third-party
+# programs.
+LX_DEPENDENCIES = ["riscv", "nextpnr-ecp5", "yosys"]
+
+# Import lxbuildenv to integrate the deps/ directory
+import lxbuildenv
 
 from migen import *
 
 from litex.gen import *
 
 from litex.build.io import DDROutput
+from litex.build.generic_platform import *
 
 from litex_boards.platforms import colorlight_i5
 
 from litex.soc.cores.clock import *
 from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
-from litex.soc.cores.video import VideoHDMIPHY
-from litex.soc.cores.led import LedChaser
 from litex.soc.cores.uart import *
 
 from litex.soc.interconnect.csr import *
 
 from litedram.modules import M12L64322A # Compatible with EM638325-6H.
 from litedram.phy import GENSDRPHY, HalfRateGENSDRPHY
-
-from liteeth.phy.ecp5rgmii import LiteEthPHYRGMII
 
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
@@ -56,7 +56,7 @@ _io_eurorack_pmod = [
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(LiteXModule):
-    def __init__(self, platform, sys_clk_freq, use_internal_osc=False, with_usb_pll=False, with_video_pll=False, sdram_rate="1:1"):
+    def __init__(self, platform, sys_clk_freq, use_internal_osc=False, sdram_rate="1:1"):
         self.rst    = Signal()
         self.cd_sys = ClockDomain()
         if sdram_rate == "1:2":
@@ -93,25 +93,6 @@ class _CRG(LiteXModule):
         else:
            pll.create_clkout(self.cd_sys_ps, sys_clk_freq, phase=180) # Idealy 90° but needs to be increased.
 
-        # USB PLL
-        if with_usb_pll:
-            self.usb_pll = usb_pll = ECP5PLL()
-            self.comb += usb_pll.reset.eq(~self.rst_n | self.rst)
-            usb_pll.register_clkin(clk, clk_freq)
-            self.cd_usb_12 = ClockDomain()
-            self.cd_usb_48 = ClockDomain()
-            usb_pll.create_clkout(self.cd_usb_12, 12e6, margin=0)
-            usb_pll.create_clkout(self.cd_usb_48, 48e6, margin=0)
-
-        # Video PLL
-        if with_video_pll:
-            self.video_pll = video_pll = ECP5PLL()
-            self.comb += video_pll.reset.eq(~self.rst_n | self.rst)
-            video_pll.register_clkin(clk, clk_freq)
-            self.cd_hdmi   = ClockDomain()
-            self.cd_hdmi5x = ClockDomain()
-            video_pll.create_clkout(self.cd_hdmi,    40e6, margin=0)
-            video_pll.create_clkout(self.cd_hdmi5x, 200e6, margin=0)
 
         # SDRAM clock
         sdram_clk = ClockSignal("sys2x_ps" if sdram_rate == "1:2" else "sys_ps")
@@ -121,38 +102,21 @@ class _CRG(LiteXModule):
 
 class BaseSoC(SoCCore):
     def __init__(self, board="i5", revision="7.0", toolchain="trellis", sys_clk_freq=60e6,
-        with_ethernet          = False,
-        with_etherbone         = False,
-        local_ip               = "",
-        remote_ip              = "",
-        eth_phy                = 0,
-        with_led_chaser        = False,
         use_internal_osc       = False,
         sdram_rate             = "1:1",
-        with_video_terminal    = False,
-        with_video_framebuffer = False,
         **kwargs):
         board = board.lower()
         assert board in ["i5", "i9"]
         platform = colorlight_i5.Platform(board=board, revision=revision, toolchain=toolchain)
 
         # CRG --------------------------------------------------------------------------------------
-        with_usb_pll   = kwargs.get("uart_name", None) == "usb_acm"
-        with_video_pll = with_video_terminal or with_video_framebuffer
         self.crg = _CRG(platform, sys_clk_freq,
             use_internal_osc = use_internal_osc,
-            with_usb_pll     = with_usb_pll,
-            with_video_pll   = with_video_pll,
             sdram_rate       = sdram_rate
         )
 
         # SoCCore ----------------------------------------------------------------------------------
         SoCCore.__init__(self, platform, int(sys_clk_freq), ident = "LiteX SoC on Colorlight " + board.upper(), **kwargs)
-
-        # Leds -------------------------------------------------------------------------------------
-        if with_led_chaser:
-            ledn = platform.request_all("user_led_n")
-            self.leds = LedChaser(pads=ledn, sys_clk_freq=sys_clk_freq)
 
         # SPI Flash --------------------------------------------------------------------------------
         if board == "i5":
@@ -173,39 +137,6 @@ class BaseSoC(SoCCore):
                 l2_cache_size = kwargs.get("l2_size", 8192)
             )
 
-        # Ethernet / Etherbone ---------------------------------------------------------------------
-        if with_ethernet or with_etherbone:
-            self.ethphy = LiteEthPHYRGMII(
-                clock_pads = self.platform.request("eth_clocks", eth_phy),
-                pads       = self.platform.request("eth", eth_phy),
-                tx_delay = 0)
-            if with_ethernet:
-                self.add_ethernet(phy=self.ethphy)
-            if with_etherbone:
-                self.add_etherbone(phy=self.ethphy)
-
-        if local_ip:
-            local_ip = local_ip.split(".")
-            self.add_constant("LOCALIP1", int(local_ip[0]))
-            self.add_constant("LOCALIP2", int(local_ip[1]))
-            self.add_constant("LOCALIP3", int(local_ip[2]))
-            self.add_constant("LOCALIP4", int(local_ip[3]))
-
-        if remote_ip:
-            remote_ip = remote_ip.split(".")
-            self.add_constant("REMOTEIP1", int(remote_ip[0]))
-            self.add_constant("REMOTEIP2", int(remote_ip[1]))
-            self.add_constant("REMOTEIP3", int(remote_ip[2]))
-            self.add_constant("REMOTEIP4", int(remote_ip[3]))
-
-        # Video ------------------------------------------------------------------------------------
-        if with_video_terminal or with_video_framebuffer:
-            self.videophy = VideoHDMIPHY(platform.request("gpdi"), clock_domain="hdmi")
-            if with_video_terminal:
-                self.add_video_terminal(phy=self.videophy, timings="800x600@60Hz", clock_domain="hdmi")
-            if with_video_framebuffer:
-                self.add_video_framebuffer(phy=self.videophy, timings="800x600@60Hz", clock_domain="hdmi")
-
     def add_uart_midi(self):
 
         # Extra UART
@@ -221,18 +152,16 @@ class BaseSoC(SoCCore):
 
     def add_eurorack_pmod(self):
 
-        assert(sys_clk_freq == 12e6) # FIXME: derive from PLL properly.
-
         eurorack_pmod_pads = self.platform.request("eurorack_pmod_p2b")
 
-        eurorack_pmod = EurorackPmod(platform, eurorack_pmod_pads)
+        eurorack_pmod = EurorackPmod(self.platform, eurorack_pmod_pads)
 
         N_VOICES = 4
 
         for voice in range(N_VOICES):
-            osc = WavetableOscillator(platform)
-            lpf = KarlsenLowPass(platform)
-            dc_block = DcBlock(platform)
+            osc = WavetableOscillator(self.platform)
+            lpf = KarlsenLowPass(self.platform)
+            dc_block = DcBlock(self.platform)
 
             self.comb += [
                 lpf.sample_in.eq(osc.out),
@@ -255,42 +184,23 @@ def main():
     parser.add_target_argument("--board",            default="i5",             help="Board type (i5).")
     parser.add_target_argument("--revision",         default="7.0",            help="Board revision (7.0).")
     parser.add_target_argument("--sys-clk-freq",     default=12e6, type=float, help="System clock frequency.")
-    ethopts = parser.target_group.add_mutually_exclusive_group()
-    ethopts.add_argument("--with-ethernet",   action="store_true",      help="Enable Ethernet support.")
-    ethopts.add_argument("--with-etherbone",  action="store_true",      help="Enable Etherbone support.")
-    parser.add_target_argument("--remote-ip", default="192.168.1.100",  help="Remote IP address of TFTP server.")
-    parser.add_target_argument("--local-ip",  default="192.168.1.50",   help="Local IP address.")
-    sdopts = parser.target_group.add_mutually_exclusive_group()
-    sdopts.add_argument("--with-spi-sdcard",  action="store_true", help="Enable SPI-mode SDCard support.")
-    sdopts.add_argument("--with-sdcard",      action="store_true", help="Enable SDCard support.")
-    parser.add_target_argument("--eth-phy",          default=0, type=int, help="Ethernet PHY (0 or 1).")
     parser.add_target_argument("--use-internal-osc", action="store_true", help="Use internal oscillator.")
     parser.add_target_argument("--sdram-rate",       default="1:1",       help="SDRAM Rate (1:1 Full Rate or 1:2 Half Rate).")
     viopts = parser.target_group.add_mutually_exclusive_group()
-    viopts.add_argument("--with-video-terminal",    action="store_true", help="Enable Video Terminal (HDMI).")
-    viopts.add_argument("--with-video-framebuffer", action="store_true", help="Enable Video Framebuffer (HDMI).")
     args = parser.parse_args()
+
+    # TODO: `eurorack-pmod` gateware currently assumes 12MHz system clock, this
+    # should be automatically derived from its own PLL at some point..
+    assert(args.sys_clk_freq == 12e6)
 
     soc = BaseSoC(board=args.board, revision=args.revision,
         toolchain              = args.toolchain,
         sys_clk_freq           = args.sys_clk_freq,
-        with_ethernet          = args.with_ethernet,
-        with_etherbone         = args.with_etherbone,
-        local_ip               = args.local_ip,
-        remote_ip              = args.remote_ip,
-        eth_phy                = args.eth_phy,
         use_internal_osc       = args.use_internal_osc,
         sdram_rate             = args.sdram_rate,
-        with_video_terminal    = args.with_video_terminal,
-        with_video_framebuffer = args.with_video_framebuffer,
         **parser.soc_argdict
     )
-    soc.platform.add_extension(colorlight_i5._sdcard_pmod_io)
     soc.platform.add_extension(_io_eurorack_pmod)
-    if args.with_spi_sdcard:
-        soc.add_spi_sdcard()
-    if args.with_sdcard:
-        soc.add_sdcard()
 
     soc.add_uart_midi()
     soc.add_eurorack_pmod()

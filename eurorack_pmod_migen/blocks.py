@@ -6,7 +6,7 @@ from litex.soc.interconnect.csr import *
 
 SOURCES_ROOT = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
-        "../eurorack-pmod/gateware"
+        "../deps/eurorack-pmod/gateware"
         )
 
 class WavetableOscillator(Module, AutoCSR):

@@ -6,7 +6,7 @@ from litex.soc.interconnect.csr import *
 
 SOURCES_ROOT = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
-        "../eurorack-pmod/gateware"
+        "../deps/eurorack-pmod/gateware"
         )
 
 class EurorackPmod(Module, AutoCSR):
@@ -118,18 +118,20 @@ class EurorackPmod(Module, AutoCSR):
 
         # FIXME: For now these tristate implementations are ECP5 specific.
 
-        self.specials += Instance("IOBUF",
-            io_IO   = pads.i2c_scl,
+        self.specials += Instance("TRELLIS_IO",
+            p_DIR = "BIDIR",
+            i_B   = pads.i2c_scl,
             i_I   = 0,
             o_O   = self.i2c_scl_i,
-            i_OEN   = ~self.i2c_scl_oe
+            i_T   = ~self.i2c_scl_oe
         )
 
-        self.specials += Instance("IOBUF",
-            io_IO   = pads.i2c_sda,
+        self.specials += Instance("TRELLIS_IO",
+            p_DIR = "BIDIR",
+            i_B   = pads.i2c_sda,
             i_I   = 0,
             o_O   = self.i2c_sda_i,
-            i_OEN   = ~self.i2c_sda_oe
+            i_T   = ~self.i2c_sda_oe
         )
 
         # Exposed CSRs
