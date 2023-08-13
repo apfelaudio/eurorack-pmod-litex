@@ -8,9 +8,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: YosysHQ/setup-oss-cad-suite@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            override: true
+            components: rustfmt, clippy
+            target: riscv32imac-unknown-none-elf
       - uses: gregdavill/setup-riscv-gnu-toolchain@v2
       - run: riscv-none-elf-gcc --version
-      - name: configure python
+      - name: Install python packages
         run: |
           python3 -m pip install setuptools
           python3 -m pip install pycrc
@@ -22,9 +28,16 @@ jobs:
       - run: python3 example-colorlight-i5.py --ecppack-compress --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --build
       - uses: actions/upload-artifact@v3
         with:
-          name: colorlight-i5-bitstream.bit
-          path: build/colorlight_i5/gateware/colorlight_i5.bit
+          name: bitstream-artifacts
+          path: |
+            build/colorlight_i5/gateware/colorlight_i5.bit
+            build/colorlight_i5/csr.svd
+      - name: Build firmware (rust)
+        run: |
+          cd firmware
+          ./build.rs
       - uses: actions/upload-artifact@v3
         with:
-          name: colorlight-i5-csr.svd
-          path: build/colorlight_i5/csr.svd
+          name: firmware-artifacts
+          path: |
+            build/colorlight_i5/rust-fw.bin
