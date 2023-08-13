@@ -31,3 +31,6 @@
 [submodule "firmware/deps/rust-litex-hal"]
 	path = firmware/deps/rust-litex-hal
 	url = https://github.com/schnommus/rust-litex-hal
+[submodule "deps/pythondata-cpu-picorv32"]
+	path = deps/pythondata-cpu-picorv32
+	url = https://github.com/litex-hub/pythondata-cpu-picorv32.git

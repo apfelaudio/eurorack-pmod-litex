@@ -116,22 +116,20 @@ class EurorackPmod(Module, AutoCSR):
         )
 
 
-        # FIXME: For now these tristate implementations are ECP5 specific.
+        # These tristate implementations are Gowin tool specific!
 
-        self.specials += Instance("TRELLIS_IO",
-            p_DIR = "BIDIR",
-            i_B   = pads.i2c_scl,
+        self.specials += Instance("IOBUF",
+            io_IO   = pads.i2c_scl,
             i_I   = 0,
             o_O   = self.i2c_scl_i,
-            i_T   = ~self.i2c_scl_oe
+            i_OEN   = ~self.i2c_scl_oe
         )
 
-        self.specials += Instance("TRELLIS_IO",
-            p_DIR = "BIDIR",
-            i_B   = pads.i2c_sda,
+        self.specials += Instance("IOBUF",
+            io_IO   = pads.i2c_sda,
             i_I   = 0,
             o_O   = self.i2c_sda_i,
-            i_T   = ~self.i2c_sda_oe
+            i_OEN   = ~self.i2c_sda_oe
         )
 
         # Exposed CSRs

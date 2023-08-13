@@ -1,3 +1,17 @@
+# Gowin testing
+
+I am building with
+
+Gateware
+
+```
+LD_PRELOAD=/usr/lib/libfreetype.so python example-sipeed-tang-primer-20k.py --cpu-type picorv32 --csr-svd build/sipeed_tang_primer_20k/csr.svd --integrated-main-ram-size 0x8000 --build
+```
+
+Firmware as below
+
+Original README below ----
+
 **WARN:** if you're just getting started with `eurorack-pmod` please [start here instead](https://github.com/apfelaudio/eurorack-pmod), this repository is a template for more advanced projects :)
 
 # `eurorack-pmod` LiteX examples
