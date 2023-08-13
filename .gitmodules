@@ -1,0 +1,3 @@
+[submodule "deps/eurorack-pmod"]
+	path = deps/eurorack-pmod
+	url = https://github.com/apfelaudio/eurorack-pmod

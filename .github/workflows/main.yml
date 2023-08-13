@@ -1,0 +1,11 @@
+name: build & test
+
+on: [push, pull_request]
+
+jobs:
+  ubuntu-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: YosysHQ/setup-oss-cad-suite@v2
+      - run: git submodule update --init --recursive
