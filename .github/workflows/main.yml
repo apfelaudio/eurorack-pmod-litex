@@ -10,5 +10,12 @@ jobs:
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: gregdavill/setup-riscv-gnu-toolchain@v2
       - run: riscv-none-elf-gcc --version
+      - name: configure python
+        run: |
+          python3 -m pip install setuptools
+          python3 -m pip install pycrc
+          python3 -m pip install wheel
+          python3 -m pip install construct
+          python3 -m pip install Sphinx sphinxcontrib-wavedrom meson ninja setuptools_scm Jinja2
       - run: git submodule update --init --recursive
       - run: python3 eurorack-pmod-litex.py --build
