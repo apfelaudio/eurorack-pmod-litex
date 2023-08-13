@@ -3,28 +3,26 @@
 #![allow(dead_code)]
 
 use core::panic::PanicInfo;
-
+use defmt;
+use embedded_midi::MidiIn;
+use litex_hal::prelude::*;
+use litex_pac as pac;
+use litex_hal::uart::UartError;
+use midi_types::*;
+use micromath::F32Ext;
+use paste::paste;
 use riscv;
 use riscv_rt::entry;
 
-use litex_hal::prelude::*;
-use litex_pac as pac;
+const SYSTEM_CLOCK_FREQUENCY: u32 = 12_000_000;
 
-use litex_hal::uart::UartError;
-
-use defmt;
-
-use embedded_midi::MidiIn;
-
-use midi_types::*;
-
-use micromath::F32Ext;
-
-use paste::paste;
+static mut ENCODER: defmt::Encoder = defmt::Encoder::new();
+static mut UART_WRITER: Option<UartWriter> = None;
 
 litex_hal::uart! {
     Uart: litex_pac::UART,
 }
+
 litex_hal::uart! {
     UartMidi: litex_pac::UART_MIDI,
 }
@@ -32,11 +30,6 @@ litex_hal::uart! {
 litex_hal::timer! {
     Timer: litex_pac::TIMER0,
 }
-
-const SYSTEM_CLOCK_FREQUENCY: u32 = 12_000_000;
-
-static mut ENCODER: defmt::Encoder = defmt::Encoder::new();
-static mut UART_WRITER: Option<UartWriter> = None;
 
 #[defmt::global_logger]
 struct Logger;
