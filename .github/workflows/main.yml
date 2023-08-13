@@ -35,7 +35,7 @@ jobs:
       - name: Build firmware (rust)
         run: |
           cd firmware
-          ./build.rs
+          ./build.sh
       - uses: actions/upload-artifact@v3
         with:
           name: firmware-artifacts

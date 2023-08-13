@@ -33,12 +33,6 @@ from eurorack_pmod_migen.blocks import *
 
 
 _io_eurorack_pmod = [
-    ("uart_midi", 0,
-        Subsignal("tx", Pins("T1")),
-        Subsignal("rx", Pins("R1")),
-        IOStandard("LVCMOS33")
-    ),
-
     ("eurorack_pmod_p2b", 0,
         Subsignal("mclk",    Pins("N18")),
         Subsignal("pdn",     Pins("L20")),
@@ -137,42 +131,16 @@ class BaseSoC(SoCCore):
                 l2_cache_size = kwargs.get("l2_size", 8192)
             )
 
-    def add_uart_midi(self):
-
-        # Extra UART
-        uart_name = "uart_midi"
-        uart_pads      = self.platform.request(uart_name, loose=True)
-        if uart_pads is None:
-            raise ValueError(f"pads for '{uart_name}' does not exist in platform")
-        uart_phy  = UARTPHY(uart_pads, clk_freq=self.sys_clk_freq, baudrate=32500)
-        uart      = UART(uart_phy, tx_fifo_depth=16, rx_fifo_depth=16)
-        self.add_module(name=f"{uart_name}_phy", module=uart_phy)
-        self.add_module(name=uart_name, module=uart)
-        self.irq.add(uart_name, use_loc_if_exists=True)
-
     def add_eurorack_pmod(self):
-
         eurorack_pmod_pads = self.platform.request("eurorack_pmod_p2b")
-
         eurorack_pmod = EurorackPmod(self.platform, eurorack_pmod_pads)
-
-        N_VOICES = 4
-
-        for voice in range(N_VOICES):
-            osc = WavetableOscillator(self.platform)
-            lpf = KarlsenLowPass(self.platform)
-            dc_block = DcBlock(self.platform)
-
-            self.comb += [
-                lpf.sample_in.eq(osc.out),
-                dc_block.sample_in.eq(lpf.sample_out),
-                getattr(eurorack_pmod, f"cal_out{voice}").eq(dc_block.sample_out),
-            ]
-
-            self.add_module(f"wavetable_oscillator{voice}", osc)
-            self.add_module(f"karlsen_lpf{voice}", lpf)
-            self.add_module(f"dc_block{voice}", dc_block)
-
+        # Pipe inputs straight to outputs.
+        self.comb += [
+            eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
+            eurorack_pmod.cal_out1.eq(eurorack_pmod.cal_in1),
+            eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
+            eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
+        ]
         self.add_module("eurorack_pmod0", eurorack_pmod)
 
 
@@ -202,7 +170,6 @@ def main():
     )
     soc.platform.add_extension(_io_eurorack_pmod)
 
-    soc.add_uart_midi()
     soc.add_eurorack_pmod()
 
     builder = Builder(soc, **parser.builder_argdict)
