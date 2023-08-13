@@ -11,8 +11,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
             toolchain: stable
-            override: true
-            components: rustfmt, clippy
+            components: rustfmt, clippy, llvm-tools-preview
             target: riscv32imac-unknown-none-elf
       - run: cargo install svd2rust
       - run: cargo install cargo-binutils
