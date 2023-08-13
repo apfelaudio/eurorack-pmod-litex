@@ -1,6 +1,8 @@
+**WARN:** if you're just getting started with `eurorack-pmod` please [start here instead](https://github.com/apfelaudio/eurorack-pmod), this repository is a template for more advanced projects :)
+
 # `eurorack-pmod` LiteX examples
 
-Basic example of using `eurorack-pmod` inside a LiteX environment firmware written in Rust.
+Basic example of using `eurorack-pmod` inside a LiteX environment with firmware written in Rust.
 
 It consists of a basic SoC that includes one instance of `eurorack-pmod` working alongside a soft RISCV CPU. Currently only tested on Colorlight i5 but should be quite easy to port to other ECP5 boards.
 
