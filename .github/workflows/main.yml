@@ -3,7 +3,7 @@ name: build & test
 on: [push, pull_request]
 
 jobs:
-  ubuntu-build:
+  ubuntu-build-colorlight-i5:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -18,4 +18,10 @@ jobs:
           python3 -m pip install construct
           python3 -m pip install Sphinx sphinxcontrib-wavedrom meson ninja setuptools_scm Jinja2
       - run: git submodule update --init --recursive
-      - run: python3 eurorack-pmod-litex.py --build
+      - run: mkdir -p build
+      - run: python3 example-colorlight-i5.py --cpu-type vexriscv --cpu-variant imac --csr-svd build/csr.svd --build
+      - uses: actions/upload-artifact@v3
+        with:
+          path: |
+            build/csr.svd
+            build/colorlight_i5/gateware/colorlight_i5.bit
