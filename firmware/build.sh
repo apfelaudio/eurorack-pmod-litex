@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-export BUILD_DIR=`pwd`/../build/colorlight_i5
+export BUILD_DIR=`pwd`/../build/lambdaconcept_ecpix5
 
 # DEFMT logging level is fixed at firmware compile time.
 # You can use this to switch logging off completely.
@@ -18,4 +18,4 @@ cd $FW_ROOT/litex-fw
 cargo build --target=riscv32imac-unknown-none-elf --release
 
 # Copy it into a binary that litex_term can upload.
-riscv-none-elf-objcopy target/riscv32imac-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
+riscv64-elf-objcopy target/riscv32imac-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
