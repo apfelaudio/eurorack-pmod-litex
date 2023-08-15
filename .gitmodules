@@ -31,3 +31,9 @@
 [submodule "firmware/deps/rust-litex-hal"]
 	path = firmware/deps/rust-litex-hal
 	url = https://github.com/schnommus/rust-litex-hal
+[submodule "deps/liteeth"]
+	path = deps/liteeth
+	url = https://github.com/enjoy-digital/liteeth
+[submodule "deps/liteiclink"]
+	path = deps/liteiclink
+	url = https://github.com/enjoy-digital/liteiclink
