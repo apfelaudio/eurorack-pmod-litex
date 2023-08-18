@@ -9,6 +9,8 @@ export DEFMT_LOG=debug
 
 FW_ROOT=`pwd`
 
+OBJCOPY=${OBJCOPY:=riscv-none-elf-objcopy}
+
 # Generate the Rust CSR bindings spat out by the LiteX SOC generated.
 cd $FW_ROOT/litex-pac/src
 svd2rust -i $BUILD_DIR/csr.svd --target riscv
@@ -18,4 +20,4 @@ cd $FW_ROOT/litex-fw
 cargo build --target=riscv32imac-unknown-none-elf --release
 
 # Copy it into a binary that litex_term can upload.
-riscv64-elf-objcopy target/riscv32imac-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
+${OBJCOPY} target/riscv32imac-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
