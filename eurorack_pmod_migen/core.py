@@ -10,8 +10,7 @@ SOURCES_ROOT = os.path.join(
         )
 
 class EurorackPmod(Module, AutoCSR):
-    def __init__(self, platform, pads, w=16, output_csr_read_only=True,
-                 create_sample_clk=True):
+    def __init__(self, platform, pads, w=16, output_csr_read_only=True):
         self.w = w
         self.cal_mem_file = os.path.join(SOURCES_ROOT, "cal/cal_mem.hex")
         self.codec_cfg_file = os.path.join(SOURCES_ROOT, "drivers/ak4619-cfg.hex")
@@ -19,11 +18,9 @@ class EurorackPmod(Module, AutoCSR):
 
         # Exposed signals
 
-        self.clk_12mhz = ClockSignal("sys")
+        self.clk_256fs = ClockSignal("clk_256fs")
+        self.clk_fs = ClockSignal("clk_fs")
         self.rst = ResetSignal("sys")
-
-        if create_sample_clk:
-            self.clock_domains.cd_sample_clk = ClockDomain()
 
         self.cal_in0 = Signal((w, True))
         self.cal_in1 = Signal((w, True))
@@ -72,7 +69,8 @@ class EurorackPmod(Module, AutoCSR):
             p_LED_CFG_FILE = self.led_cfg_file,
 
             # Ports (clk + reset)
-            i_clk_12mhz = self.clk_12mhz,
+            i_clk_256fs = self.clk_256fs,
+            i_clk_fs = self.clk_fs,
             i_rst = self.rst,
 
             # Pads (tristate, require different logic to hook these
@@ -90,8 +88,7 @@ class EurorackPmod(Module, AutoCSR):
             o_lrck = pads.lrck,
             o_bick = pads.bick,
 
-            # Ports (sample clocking)
-            o_sample_clk = self.cd_sample_clk.clk if create_sample_clk else None,
+            # Ports (clock at clk_fs)
             o_cal_in0 = self.cal_in0,
             o_cal_in1 = self.cal_in1,
             o_cal_in2 = self.cal_in2,
