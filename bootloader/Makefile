@@ -2,11 +2,7 @@ include ../build/lambdaconcept_ecpix5/software/include/generated/variables.mak
 include $(SOC_DIRECTORY)/software/common.mak
 
 FW_DIRECTORY=.
-
-ifeq ($(CPU),blackparrot)
-BP_LIBS =  -L$(BP_LITEX_SOFTWARE)
-BP_FLAGS = -lgcc
-endif
+BUILD_DIR=../build/lambdaconcept_ecpix5/software
 
 CFLAGS += -I$(FW_DIRECTORY)/include
 CFLAGS += -DI2C_FREQ_HZ=400
@@ -32,41 +28,29 @@ vpath %.S $(FW_DIRECTORY)
 OBJECTS =  	crt0.o \
 			main.o	\
 			sleep.o \
-			flash.o \
 			dcd_eptri.o \
 			usb_descriptors.o 		   		
 
 OBJECTS += $(TINYUSB_OBJ)
 
 all: oc-fw.bin
-	$(PYTHON) -m litex.soc.software.memusage oc-fw.elf $(CURDIR)/../include/generated/regions.ld $(TRIPLE)
 
 %.bin: %.elf
 	$(OBJCOPY) -O binary $< $@
-ifneq ($(OS),Windows_NT)
-	chmod -x $@
-endif
-ifeq ($(CPUENDIANNESS),little)
-	$(PYTHON) -m litex.soc.software.mkmscimg $@ --little
-else
-	$(PYTHON) -m litex.soc.software.mkmscimg $@
-endif
 
-oc-fw.elf: $(FW_DIRECTORY)/linker.ld $(OBJECTS)
-
-vpath %.a $(PACKAGES:%=../%)
-
-%.elf: $(LIBS:%=%.a)
+oc-fw.elf: $(OBJECTS)
 	$(CC) $(LDFLAGS) -T $(FW_DIRECTORY)/linker.ld -N -o $@ \
 		$(OBJECTS) \
-		$(PACKAGES:%=-L../%) \
+		-L$(BUILD_DIR)/libc \
+		-lc \
+		-L$(BUILD_DIR)/libbase \
+		-lbase \
+		-L$(BUILD_DIR)/liblitespi \
+		-lcompiler_rt \
+		-L$(BUILD_DIR)/libcompiler_rt \
+		-llitespi \
 		-Wl,--whole-archive \
-		-Wl,--gc-sections \
-		$(LIBS:lib%=-l%)
-		
-ifneq ($(OS),Windows_NT)
-	chmod -x $@
-endif
+		-Wl,--gc-sections
 
 # pull in dependency info for *existing* .o files
 -include $(OBJECTS:.o=.d)
@@ -76,7 +60,6 @@ endif
 
 %.o: %.S
 	$(assemble)
-
 
 clean:
 	$(RM) $(OBJECTS) oc-fw.elf oc-fw.bin .*~ *~

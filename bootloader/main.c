@@ -135,6 +135,7 @@ int main(int i, char **c)
 	msleep(20);
 
 	/* Handle soft-reset to unlock bootloader partition */
+    #if 0
 	if (ctrl_scratch_read() == 0)
 	{
 		enable_bootloader_alt();
@@ -180,6 +181,9 @@ int main(int i, char **c)
 
 	if (((button_in_read() & 1) == 0) || stay_in_bootloader)
 	{
+    #endif
+    if (true)
+    {
 
 		timer_init();
 		tusb_init();
@@ -187,8 +191,8 @@ int main(int i, char **c)
 		while (1)
 		{
 			tud_task(); // tinyusb device task
-			led_blinking_task();
 
+#if 0
 			if ((button_in_read() == 0))
 			{
 
@@ -217,6 +221,7 @@ int main(int i, char **c)
 					break;
 				}
 			}
+#endif
 		}
 	}
 
@@ -316,6 +321,7 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 
 	uint32_t flash_address = alt_offsets[alt].address + block_num * CFG_TUD_DFU_XFER_BUFSIZE;
 
+#if 0
 	/* First block in 64K erase block */
 	if ((flash_address & (FLASH_64K_BLOCK_ERASE_SIZE - 1)) == 0)
 	{
@@ -343,9 +349,10 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 		/* While FLASH erase is in progress update LEDs */
 		while (spiflash_read_status_register() & 1)
 		{
-			led_blinking_task();
+			//led_blinking_task();
 		};
 	}
+#endif
 
 	// flashing op for download complete without error
 	tud_dfu_finish_flashing(DFU_STATUS_OK);

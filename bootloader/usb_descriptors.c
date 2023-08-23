@@ -258,7 +258,9 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   else if(index == 3){
     uint8_t uuid[8];
 
+#if 0
     spiflash_read_uuid(uuid);
+#endif
     chr_count = 19;
 
     uint16_t* s = &_desc_str[1];
