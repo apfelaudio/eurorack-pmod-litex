@@ -98,12 +98,14 @@ void app_isr(void)
 	// Dispatch USB events.
 	if (irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT | 1 << USB_IN_EP_INTERRUPT | 1 << USB_OUT_EP_INTERRUPT | 1 << USB_SETUP_INTERRUPT))
 	{
+        uart_rxtx_write('1');
 		tud_int_handler(0);
 	}
 
 	/* Monitor bus resets */
 	if(irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT))
 	{
+        uart_rxtx_write('2');
 		bus_reset_received = true;
 	}
 
@@ -118,6 +120,7 @@ void app_isr(void)
 	if (irqs & (1 << UART_INTERRUPT))
 	{
 		uart_isr();
+        uart_rxtx_write('u');
 	}
 }
 
@@ -184,9 +187,12 @@ int main(int i, char **c)
     #endif
     if (true)
     {
+        uart_rxtx_write('^');
 
 		timer_init();
 		tusb_init();
+
+        uart_rxtx_write('d');
 
 		while (1)
 		{

@@ -20,7 +20,7 @@ TINYUSB_OBJ := $(notdir $(TINYUSB_SRC:.c=.o))
 CFLAGS += 	-I$(TINYUSB_DIR)/src \
 			-DCFG_TUSB_MCU=OPT_MCU_LUNA_EPTRI \
 			-fdata-sections -ffunction-sections -fsingle-precision-constant -fno-strict-aliasing \
-			-DCFG_TUSB_DEBUG=1
+			-DCFG_TUSB_DEBUG=2
 
 vpath %.c $(dir $(TINYUSB_SRC)) $(FW_DIRECTORY) $(FW_DIRECTORY)/luna/eptri
 vpath %.S $(FW_DIRECTORY)
@@ -62,6 +62,6 @@ oc-fw.elf: $(OBJECTS)
 	$(assemble)
 
 clean:
-	$(RM) $(OBJECTS) oc-fw.elf oc-fw.bin .*~ *~
+	$(RM) $(OBJECTS) oc-fw.elf oc-fw.bin .*~ *~ *.d
 
 .PHONY: all clean

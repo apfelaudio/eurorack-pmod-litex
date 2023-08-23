@@ -18,7 +18,7 @@ SECTIONS
 		. = ALIGN(4);
 		*(.text .stub .text.* .gnu.linkonce.t.*)
 		_etext = .;
-	} > rom
+	} > main_ram
 
 	.rodata :
 	{
@@ -35,7 +35,7 @@ SECTIONS
 		. = ALIGN(4);
 		_erodata = .;
 		
-	} > rom
+	} > main_ram
 
 
 	.bss :
@@ -51,7 +51,7 @@ SECTIONS
 		. = ALIGN(4);
 		_ebss = .;
 		_end = .;
-	} > sram
+	} > main_ram
 
 	.data :
 	{
@@ -67,7 +67,7 @@ SECTIONS
 		FILL(0);
 		. = ALIGN(4);
 		_edata = .;
-	} > sram AT > rom
+	} > main_ram
 	
 	/DISCARD/ :
 	{
