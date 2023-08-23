@@ -37,3 +37,21 @@
 [submodule "deps/liteiclink"]
 	path = deps/liteiclink
 	url = https://github.com/enjoy-digital/liteiclink
+[submodule "deps/amaranth"]
+	path = deps/amaranth
+	url = git@github.com:schnommus/amaranth.git
+[submodule "deps/amaranth-soc"]
+	path = deps/amaranth-soc
+	url = https://github.com/amaranth-lang/amaranth-soc.git
+[submodule "deps/amaranth-stdio"]
+	path = deps/amaranth-stdio
+	url = https://github.com/amaranth-lang/amaranth-stdio.git
+[submodule "deps/lambdasoc"]
+	path = deps/lambdasoc
+	url = git@github.com:schnommus/lambdasoc.git
+[submodule "deps/luna"]
+	path = deps/luna
+	url = git@github.com:schnommus/luna.git
+[submodule "deps/python-usb-protocol"]
+	path = deps/python-usb-protocol
+	url = https://github.com/usb-tools/python-usb-protocol

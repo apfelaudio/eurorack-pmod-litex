@@ -14,6 +14,8 @@ from litex.soc.cores.clock import *
 
 from litex_boards.targets.lambdaconcept_ecpix5 import *
 
+from rtl.eptri import LunaEpTriWrapper
+
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
 
@@ -58,6 +60,25 @@ def add_eurorack_pmod(soc, sample_rate=48000):
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
 
+def add_usb(soc, base_addr=0xf0010000):
+    soc.crg.cd_usb = ClockDomain()
+    soc.comb += soc.crg.cd_usb.clk.eq(soc.crg.cd_sys.clk)
+
+    soc.submodules.usb = LunaEpTriWrapper(soc.platform, base_addr=base_addr)
+    soc.add_memory_region("usb", base_addr, 0x10000, type="");
+    soc.add_wb_slave(base_addr, soc.usb.bus)
+    for name, irq in soc.usb.irqs.items():
+        name = 'usb_{}'.format(name)
+        class DummyIRQ(Module):
+            def __init__(soc, irq):
+                class DummyEV(Module):
+                    def __init__(soc, irq):
+                        soc.irq = irq
+                soc.submodules.ev = DummyEV(irq)
+
+        setattr(soc.submodules, name, DummyIRQ(irq))
+        soc.add_interrupt(name)
+
 def main():
     from litex.build.parser import LiteXArgumentParser
     parser = LiteXArgumentParser(platform=lambdaconcept_ecpix5.Platform, description="LiteX SoC on ECPIX-5.")
@@ -72,6 +93,8 @@ def main():
         toolchain              = args.toolchain,
         **parser.soc_argdict
     )
+
+    add_usb(soc)
 
     add_eurorack_pmod(soc)
 
