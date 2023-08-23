@@ -65,8 +65,8 @@ def add_usb(soc, base_addr=0xf0010000):
     soc.comb += soc.crg.cd_usb.clk.eq(soc.crg.cd_sys.clk)
 
     soc.submodules.usb = LunaEpTriWrapper(soc.platform, base_addr=base_addr)
-    soc.add_memory_region("usb", base_addr, 0x10000, type="");
-    soc.add_wb_slave(base_addr, soc.usb.bus)
+    region = soc.add_memory_region("usb", base_addr, 0x10000, type="");
+    soc.bus.add_slave("usb", soc.usb.bus, region)
     for name, irq in soc.usb.irqs.items():
         name = 'usb_{}'.format(name)
         class DummyIRQ(Module):
@@ -75,15 +75,14 @@ def add_usb(soc, base_addr=0xf0010000):
                     def __init__(soc, irq):
                         soc.irq = irq
                 soc.submodules.ev = DummyEV(irq)
-
         setattr(soc.submodules, name, DummyIRQ(irq))
-        soc.add_interrupt(name)
+        soc.irq.add(name=name)
 
 def main():
     from litex.build.parser import LiteXArgumentParser
     parser = LiteXArgumentParser(platform=lambdaconcept_ecpix5.Platform, description="LiteX SoC on ECPIX-5.")
     parser.add_target_argument("--device",          default="85F",            help="ECP5 device (45F or 85F).")
-    parser.add_target_argument("--sys-clk-freq",    default=75e6, type=float, help="System clock frequency.")
+    parser.add_target_argument("--sys-clk-freq",    default=60e6, type=float, help="System clock frequency.")
 
     args = parser.parse_args()
 

@@ -94,19 +94,10 @@ void app_isr(void)
 	unsigned int irqs;
 	irqs = irq_pending() & irq_getmask();
 
-
-	// Dispatch USB events.
-	if (irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT | 1 << USB_IN_EP_INTERRUPT | 1 << USB_OUT_EP_INTERRUPT | 1 << USB_SETUP_INTERRUPT))
+	// Dispatch UART events.
+	if (irqs & (1 << UART_INTERRUPT))
 	{
-        uart_rxtx_write('1');
-		tud_int_handler(0);
-	}
-
-	/* Monitor bus resets */
-	if(irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT))
-	{
-        uart_rxtx_write('2');
-		bus_reset_received = true;
+		uart_isr();
 	}
 
 	// Dispatch timer events.
@@ -116,11 +107,16 @@ void app_isr(void)
 		timer_isr();
 	}
 
-	// Dispatch UART events.
-	if (irqs & (1 << UART_INTERRUPT))
+	// Dispatch USB events.
+	if (irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT | 1 << USB_IN_EP_INTERRUPT | 1 << USB_OUT_EP_INTERRUPT | 1 << USB_SETUP_INTERRUPT))
 	{
-		uart_isr();
-        uart_rxtx_write('u');
+		tud_int_handler(0);
+	}
+
+	/* Monitor bus resets */
+	if(irqs & (1 << USB_DEVICE_CONTROLLER_INTERRUPT))
+	{
+		bus_reset_received = true;
 	}
 }
 
@@ -133,9 +129,9 @@ int main(int i, char **c)
 	uart_init();
 
 	usb_device_controller_reset_write(1);
-	msleep(20);
+	msleep(100);
 	usb_device_controller_reset_write(0);
-	msleep(20);
+	msleep(100);
 
 	/* Handle soft-reset to unlock bootloader partition */
     #if 0
