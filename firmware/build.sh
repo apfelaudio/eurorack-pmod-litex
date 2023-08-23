@@ -1,7 +1,13 @@
 #!/bin/bash
 set -e
 
-export BUILD_DIR=`pwd`/../build/lambdaconcept_ecpix5
+if [[ -z "$BOARD" ]]; then
+    echo "Must provide BOARD (e.g. $ BOARD='colorlight_i5' ./build.sh)" 1>&2
+    echo "Existing builds are" $(ls `pwd`/../build)
+    exit 1
+fi
+
+export BUILD_DIR=`pwd`/../build/${BOARD}
 
 # DEFMT logging level is fixed at firmware compile time.
 # You can use this to switch logging off completely.

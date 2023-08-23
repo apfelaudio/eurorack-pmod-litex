@@ -4,7 +4,7 @@
 
 Basic example of using `eurorack-pmod` inside a LiteX environment with firmware written in Rust.
 
-It consists of a basic SoC that includes one instance of `eurorack-pmod` working alongside a soft RISCV CPU. Currently only tested on Colorlight i5 but should be quite easy to port to other ECP5 boards.
+It consists of a basic SoC that includes one instance of `eurorack-pmod` working alongside a soft RISCV CPU. Currently only tested on Colorlight i5, ECPIX-5 but should be quite easy to port to other ECP5 boards.
 
 # Dependencies
 
@@ -25,13 +25,19 @@ The bitstream and firmware are built in CI inside `.github/workflows/main.yml`, 
 ```
 <from this repository>
 git submodule update --init --recursive
+# e.g. for Colorlight i5
 python3 example-colorlight-i5.py --ecppack-compress --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --build
+# e.g. for ECPIX-5
+python3 example-ecpix-5.py --ecppack-compress --cpu-type vexriscv --cpu-variant imac --csr-svd build/lambdaconcept_ecpix5/csr.svd --build
 ```
 
 # Flashing the bitstream
 
 ```
+# e.g. for Colorlight i5
 openFPGALoader -b colorlight-i5 build/colorlight_i5/gateware/colorlight_i5.bit
+# e.g. for ECPIX-5
+openFPGALoader -b ecpix5 --vid 0x0403 --pid 0x6011 build/lambdaconcept_ecpix5/gateware/lambdaconcept_ecpix5.bit
 ```
 
 # Building the firmware (Rust)
@@ -42,10 +48,13 @@ To build the bindings for LiteX CSRs (`litex-pac`), compile the firmware, and co
 
 ```
 cd firmware/
-./build.sh
+# e.g. for Colorlight i5
+BOARD=colorlight_i5 ./build.sh
+# e.g. for ECPIX-5 with your own OBJCOPY binary --
+BOARD=lambdaconcept_ecpix5 OBJCOPY=riscv64-elf-objcopy ./build.sh
 ```
 
-To see the LiteX terminal and download firmware to the device --
+To see the LiteX terminal and download firmware to the device (again replacing all instances of the board with your own type) --
 
 ```
 <from repo root>
