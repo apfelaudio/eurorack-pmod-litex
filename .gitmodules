@@ -58,3 +58,6 @@
 [submodule "bootloader/deps/tinyusb"]
 	path = bootloader/deps/tinyusb
 	url = https://github.com/hathach/tinyusb_src.git
+[submodule "deps/pythondata-cpu-minerva"]
+	path = deps/pythondata-cpu-minerva
+	url = https://github.com/litex-hub/pythondata-cpu-minerva
