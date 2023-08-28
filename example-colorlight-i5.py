@@ -15,10 +15,12 @@ from litex.soc.integration.builder import *
 
 from litex_boards.targets.colorlight_i5 import *
 
+from rtl.eptri import LunaEpTriWrapper
+
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
 
-_io_eurorack_pmod = [
+_io_eurolut_proto1 = [
     ("eurorack_pmod_p2b", 0,
         Subsignal("mclk",    Pins("N18")),
         Subsignal("pdn",     Pins("L20")),
@@ -30,10 +32,18 @@ _io_eurorack_pmod = [
         Subsignal("bick",    Pins("N17")),
         IOStandard("LVCMOS33")
     ),
+    ("ulpi", 0,
+        Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+        Subsignal("clk",   Pins("W1")),
+        Subsignal("dir",   Pins("E16")),
+        Subsignal("nxt",   Pins("E17")),
+        Subsignal("stp",   Pins("R1")),
+        Subsignal("rst",   Pins("U1")),
+        IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
+    ),
 ]
 
 def add_eurorack_pmod(soc, sample_rate=48000):
-    soc.platform.add_extension(_io_eurorack_pmod)
 
     # Create 256*Fs clock domain
     soc.crg.cd_clk_256fs = ClockDomain()
@@ -59,6 +69,25 @@ def add_eurorack_pmod(soc, sample_rate=48000):
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
 
+def add_usb(soc, base_addr=0xf0010000):
+    soc.crg.cd_usb = ClockDomain()
+    soc.comb += soc.crg.cd_usb.clk.eq(soc.crg.cd_sys.clk)
+
+    soc.submodules.usb = LunaEpTriWrapper(soc.platform, base_addr=base_addr)
+    region = soc.add_memory_region("usb", base_addr, 0x10000, type="");
+    soc.bus.add_slave("usb", soc.usb.bus, region)
+    for name, irq in soc.usb.irqs.items():
+        name = 'usb_{}'.format(name)
+        class DummyIRQ(Module):
+            def __init__(soc, irq):
+                class DummyEV(Module):
+                    def __init__(soc, irq):
+                        soc.irq = irq
+                soc.submodules.ev = DummyEV(irq)
+        setattr(soc.submodules, name, DummyIRQ(irq))
+        soc.irq.add(name=name)
+
+
 def main():
     from litex.build.parser import LiteXArgumentParser
     parser = LiteXArgumentParser(platform=colorlight_i5.Platform, description="LiteX SoC on Colorlight I5.")
@@ -73,6 +102,10 @@ def main():
         sys_clk_freq           = args.sys_clk_freq,
         **parser.soc_argdict
     )
+
+    soc.platform.add_extension(_io_eurolut_proto1)
+
+    add_usb(soc)
 
     add_eurorack_pmod(soc)
 

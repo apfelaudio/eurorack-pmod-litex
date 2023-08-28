@@ -1,8 +1,8 @@
-include ../build/lambdaconcept_ecpix5/software/include/generated/variables.mak
+include ../build/colorlight_i5/software/include/generated/variables.mak
 include $(SOC_DIRECTORY)/software/common.mak
 
 FW_DIRECTORY=.
-BUILD_DIR=../build/lambdaconcept_ecpix5/software
+BUILD_DIR=../build/colorlight_i5/software
 
 CFLAGS += -I$(FW_DIRECTORY)/include
 CFLAGS += -DI2C_FREQ_HZ=400
