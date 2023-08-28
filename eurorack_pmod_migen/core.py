@@ -4,6 +4,8 @@ from migen import *
 
 from litex.soc.interconnect.csr import *
 
+from litex.soc.cores.gpio import GPIOOut
+
 SOURCES_ROOT = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "../deps/eurorack-pmod/gateware"
@@ -20,7 +22,8 @@ class EurorackPmod(Module, AutoCSR):
 
         self.clk_256fs = ClockSignal("clk_256fs")
         self.clk_fs = ClockSignal("clk_fs")
-        self.rst = ResetSignal("sys")
+
+        self.rst = Signal()
 
         self.cal_in0 = Signal((w, True))
         self.cal_in1 = Signal((w, True))
@@ -133,6 +136,8 @@ class EurorackPmod(Module, AutoCSR):
 
         # Exposed CSRs
 
+        self.csr_reset = CSRStorage(1)
+
         self.csr_cal_in0 = CSRStatus(16)
         self.csr_cal_in1 = CSRStatus(16)
         self.csr_cal_in2 = CSRStatus(16)
@@ -157,6 +162,7 @@ class EurorackPmod(Module, AutoCSR):
         # Connect CSRs directly to inputs and outputs
 
         self.comb += [
+                self.rst.eq(self.csr_reset.storage),
                 self.csr_cal_in0.status.eq(self.cal_in0),
                 self.csr_cal_in1.status.eq(self.cal_in1),
                 self.csr_cal_in2.status.eq(self.cal_in2),

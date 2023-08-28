@@ -22,15 +22,26 @@ from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
 
 _io_eurolut_proto1 = [
-    ("eurorack_pmod_p2b", 0,
-        Subsignal("mclk",    Pins("N18")),
-        Subsignal("pdn",     Pins("L20")),
-        Subsignal("i2c_sda", Pins("K20")),
-        Subsignal("i2c_scl", Pins("G20")),
-        Subsignal("sdin1",   Pins("J20")),
-        Subsignal("sdout1",  Pins("L18")),
-        Subsignal("lrck",    Pins("M18")),
-        Subsignal("bick",    Pins("N17")),
+    ("eurorack_pmod_p3b", 0,
+        Subsignal("mclk",    Pins("A3")),
+        Subsignal("pdn",     Pins("B1")),
+        Subsignal("i2c_sda", Pins("D2")),
+        Subsignal("i2c_scl", Pins("E2")),
+        Subsignal("sdin1",   Pins("D1")),
+        Subsignal("sdout1",  Pins("C1")),
+        Subsignal("lrck",    Pins("C2")),
+        Subsignal("bick",    Pins("E3")),
+        IOStandard("LVCMOS33")
+    ),
+    ("eurorack_pmod_p3a", 0,
+        Subsignal("mclk",    Pins("D20")),
+        Subsignal("pdn",     Pins("B19")),
+        Subsignal("i2c_sda", Pins("A19")),
+        Subsignal("i2c_scl", Pins("A18")),
+        Subsignal("sdin1",   Pins("C17")),
+        Subsignal("sdout1",  Pins("B18")),
+        Subsignal("lrck",    Pins("B20")),
+        Subsignal("bick",    Pins("F20")),
         IOStandard("LVCMOS33")
     ),
     ("ulpi", 0,
@@ -45,22 +56,20 @@ _io_eurolut_proto1 = [
     ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
 ]
 
-def add_eurorack_pmod(soc, sample_rate=48000):
-
+def add_audio_clocks(soc, sample_rate=46875):
     # Create 256*Fs clock domain
     soc.crg.cd_clk_256fs = ClockDomain()
     soc.crg.pll.create_clkout(soc.crg.cd_clk_256fs, sample_rate * 256)
-
     # Create 1*Fs clock domain using a division register
     soc.crg.cd_clk_fs = ClockDomain()
     clkdiv_fs = Signal(8)
     soc.sync.clk_256fs += clkdiv_fs.eq(clkdiv_fs+1)
     soc.comb += soc.crg.cd_clk_fs.clk.eq(clkdiv_fs[-1])
 
-    # Now instantiate a EurorackPmod.
-    eurorack_pmod_pads = soc.platform.request("eurorack_pmod_p2b")
+def add_eurorack_pmod(soc, pads, mod_name):
+    # Instantiate a EurorackPmod.
+    eurorack_pmod_pads = soc.platform.request(pads)
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
-
     # Pipe inputs straight to outputs.
     soc.comb += [
         eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
@@ -68,8 +77,7 @@ def add_eurorack_pmod(soc, sample_rate=48000):
         eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
         eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
     ]
-
-    soc.add_module("eurorack_pmod0", eurorack_pmod)
+    soc.add_module(mod_name, eurorack_pmod)
 
 def add_programn_gpio(soc):
     programp = Signal()
@@ -117,11 +125,15 @@ def main():
 
     soc.platform.add_extension(_io_eurolut_proto1)
 
-    add_usb(soc)
-
-    add_eurorack_pmod(soc)
-
     add_programn_gpio(soc)
+
+    #add_usb(soc)
+
+    add_audio_clocks(soc)
+
+    add_eurorack_pmod(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
+    add_eurorack_pmod(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
+
 
     builder = Builder(soc, **parser.builder_argdict)
     if args.build:

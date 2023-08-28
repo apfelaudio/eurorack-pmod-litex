@@ -77,15 +77,31 @@ fn main() -> ! {
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
+    timer.delay_ms(100u32);
+    peripherals.EURORACK_PMOD0.csr_reset.write(|w| unsafe { w.bits(1) });
+    peripherals.EURORACK_PMOD1.csr_reset.write(|w| unsafe { w.bits(1) });
+    timer.delay_ms(100u32);
+    peripherals.EURORACK_PMOD0.csr_reset.write(|w| unsafe { w.bits(0) });
+    peripherals.EURORACK_PMOD1.csr_reset.write(|w| unsafe { w.bits(0) });
+
     defmt::info!("Starting main loop --");
 
     loop {
+        defmt::info!("PMOD0");
         defmt::info!("jack_detect {=u8:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         defmt::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
         defmt::info!("input1 {}", peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits() as i16);
         defmt::info!("input2 {}", peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits() as i16);
         defmt::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
         defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
+        timer.delay_ms(1000u32);
+        defmt::info!("PMOD1");
+        defmt::info!("jack_detect {=u8:x}", peripherals.EURORACK_PMOD1.csr_jack.read().bits() as u8);
+        defmt::info!("input0 {}", peripherals.EURORACK_PMOD1.csr_cal_in0.read().bits() as i16);
+        defmt::info!("input1 {}", peripherals.EURORACK_PMOD1.csr_cal_in1.read().bits() as i16);
+        defmt::info!("input2 {}", peripherals.EURORACK_PMOD1.csr_cal_in2.read().bits() as i16);
+        defmt::info!("input3 {}", peripherals.EURORACK_PMOD1.csr_cal_in3.read().bits() as i16);
+        defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits() as u32);
         timer.delay_ms(1000u32);
         defmt::info!("tick - elapsed {} sec", elapsed);
         elapsed += 1.0f32;
