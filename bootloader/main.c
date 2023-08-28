@@ -128,6 +128,9 @@ int main(int i, char **c)
 	irq_setie(1);
 	uart_init();
 
+    uart_rxtx_write('A');
+    uart_rxtx_write('\n');
+
 	usb_device_controller_reset_write(1);
 	msleep(100);
 	usb_device_controller_reset_write(0);

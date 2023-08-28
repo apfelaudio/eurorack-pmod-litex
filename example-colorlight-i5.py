@@ -11,6 +11,7 @@ import lxbuildenv
 
 from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
+from litex.soc.cores.gpio import GPIOOut, GPIOIn
 from litex.soc.integration.builder import *
 
 from litex_boards.targets.colorlight_i5 import *
@@ -41,6 +42,7 @@ _io_eurolut_proto1 = [
         Subsignal("rst",   Pins("U1")),
         IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
     ),
+    ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
 ]
 
 def add_eurorack_pmod(soc, sample_rate=48000):
@@ -68,6 +70,11 @@ def add_eurorack_pmod(soc, sample_rate=48000):
     ]
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
+
+def add_programn_gpio(soc):
+    programp = Signal()
+    soc.submodules.programn = GPIOOut(programp)
+    soc.comb += soc.platform.request("programn").eq(~programp)
 
 def add_usb(soc, base_addr=0xf0010000):
     soc.crg.cd_usb = ClockDomain()
@@ -113,6 +120,8 @@ def main():
     add_usb(soc)
 
     add_eurorack_pmod(soc)
+
+    add_programn_gpio(soc)
 
     builder = Builder(soc, **parser.builder_argdict)
     if args.build:
