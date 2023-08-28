@@ -61,3 +61,6 @@
 [submodule "deps/pythondata-cpu-minerva"]
 	path = deps/pythondata-cpu-minerva
 	url = https://github.com/litex-hub/pythondata-cpu-minerva
+[submodule "firmware/ssd1322"]
+	path = firmware/ssd1322
+	url = https://github.com/edarc/ssd1322

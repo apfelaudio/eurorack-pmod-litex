@@ -9,6 +9,10 @@ use litex_hal::uart::UartError;
 use litex_pac as pac;
 use riscv;
 use riscv_rt::entry;
+use litex_hal::hal::digital::v2::OutputPin;
+use core::iter;
+
+use ssd1322 as oled;
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 12_000_000;
 
@@ -22,6 +26,14 @@ litex_hal::uart! {
 
 litex_hal::timer! {
     Timer: litex_pac::TIMER0,
+}
+
+litex_hal::gpio! {
+    CTL: litex_pac::OLED_CTL,
+}
+
+litex_hal::spi! {
+    SPI: (litex_pac::OLED_SPI, u8),
 }
 
 #[defmt::global_logger]
@@ -84,6 +96,30 @@ fn main() -> ! {
     peripherals.EURORACK_PMOD0.csr_reset.write(|w| unsafe { w.bits(0) });
     peripherals.EURORACK_PMOD1.csr_reset.write(|w| unsafe { w.bits(0) });
 
+    let dc = CTL { index: 0 };
+    let mut rstn = CTL { index: 1 };
+    let mut csn = CTL { index: 2 };
+    let spi = SPI {
+        registers: peripherals.OLED_SPI
+    };
+
+    // Create the SpiInterface and Display.
+    let mut disp = oled::Display::new(
+        oled::SpiInterface::new(spi, dc),
+        oled::PixelCoord(256, 64),
+        oled::PixelCoord(112, 0),
+    );
+
+    csn.set_low().unwrap();
+
+    // Assert the display's /RESET for 10ms.
+    timer.delay_ms(10_u16);
+    rstn.set_low().unwrap();
+    timer.delay_ms(10_u16);
+    rstn.set_high().unwrap();
+
+
+
     defmt::info!("Starting main loop --");
 
     loop {
@@ -103,6 +139,37 @@ fn main() -> ! {
         defmt::info!("input3 {}", peripherals.EURORACK_PMOD1.csr_cal_in3.read().bits() as i16);
         defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits() as u32);
         timer.delay_ms(1000u32);
+
+        disp.init(
+            oled::Config::new(
+                oled::ComScanDirection::RowZeroLast,
+                oled::ComLayout::DualProgressive,
+            ).clock_fosc_divset(9, 1)
+                .display_enhancements(true, true)
+                .contrast_current(159)
+                .phase_lengths(5, 14)
+                .precharge_voltage(31)
+                .second_precharge_period(8)
+                .com_deselect_voltage(7),
+        ).unwrap();
+
+        timer.delay_ms(1000u32);
+
+        // Get a region covering the entire display area, and clear it by writing all zeros.
+        {
+            let mut region = disp
+                .region(oled::PixelCoord(0, 0), oled::PixelCoord(128, 128))
+                .unwrap();
+            region.draw_packed(iter::repeat(0x0f)).unwrap();
+        }
+
+        {
+            let mut region = disp
+                .region(oled::PixelCoord(128, 0), oled::PixelCoord(256, 128))
+                .unwrap();
+            region.draw_packed(iter::repeat(0x10)).unwrap();
+        }
+
         defmt::info!("tick - elapsed {} sec", elapsed);
         elapsed += 1.0f32;
     }

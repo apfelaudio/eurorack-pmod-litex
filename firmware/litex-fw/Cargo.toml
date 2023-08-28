@@ -9,8 +9,9 @@ edition = "2021"
 riscv = "*"
 riscv-rt = "*"
 panic-halt = "*"
-litex-hal = { path = "../deps/rust-litex-hal" }
+litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
 litex-pac = { path = "../litex-pac", features = ["rt"] }
+ssd1322 = { path = "../ssd1322", features = [] }
 defmt = "0.3.4"
 embedded-midi = { path = "../deps/embedded-midi" }
 micromath = "2.0.0"

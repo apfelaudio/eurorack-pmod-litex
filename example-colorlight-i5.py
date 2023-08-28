@@ -11,7 +11,8 @@ import lxbuildenv
 
 from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
-from litex.soc.cores.gpio import GPIOOut, GPIOIn
+from litex.soc.cores.spi import SPIMaster
+from litex.soc.cores.gpio import GPIOOut
 from litex.soc.integration.builder import *
 
 from litex_boards.targets.colorlight_i5 import *
@@ -53,6 +54,17 @@ _io_eurolut_proto1 = [
         Subsignal("rst",   Pins("U1")),
         IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
     ),
+    ("oled_spi", 0,
+        Subsignal("clk",  Pins("Y2")),
+        Subsignal("mosi", Pins("N2")),
+        IOStandard("LVCMOS33"),
+    ),
+    ("oled_ctl", 0,
+        Subsignal("dc",   Pins("T1")),
+        Subsignal("resn", Pins("V1")),
+        Subsignal("csn",  Pins("M1")),
+        IOStandard("LVCMOS33"),
+    ),
     ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
 ]
 
@@ -78,6 +90,14 @@ def add_eurorack_pmod(soc, pads, mod_name):
         eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
     ]
     soc.add_module(mod_name, eurorack_pmod)
+
+def add_oled(soc):
+    pads = soc.platform.request("oled_spi")
+    pads.miso = Signal()
+    spi_master = SPIMaster(pads, 8, sys_clk_freq=soc.sys_clk_freq, spi_clk_freq=1e6)
+    soc.submodules.oled_spi = spi_master
+    spi_master.add_clk_divider()
+    soc.submodules.oled_ctl = GPIOOut(soc.platform.request("oled_ctl"))
 
 def add_programn_gpio(soc):
     programp = Signal()
@@ -134,6 +154,21 @@ def main():
     add_eurorack_pmod(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
     add_eurorack_pmod(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
 
+    add_oled(soc)
+
+    """
+    # Useful to double-check connectivity ...
+    clkdiv_test = Signal(8)
+    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
+    oled = soc.platform.request("oled")
+    soc.comb += [
+        oled.clk.eq(clkdiv_test[-1]),
+        oled.din.eq(clkdiv_test[-2]),
+        oled.dc.eq(clkdiv_test[-3]),
+        oled.res.eq(clkdiv_test[-4]),
+        oled.cs.eq(clkdiv_test[-5]),
+    ]
+    """
 
     builder = Builder(soc, **parser.builder_argdict)
     if args.build:
