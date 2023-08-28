@@ -15,10 +15,10 @@ use core::fmt::Write;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
-    primitives::{Circle, PrimitiveStyle, PrimitiveStyleBuilder},
-    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    primitives::{Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle},
+    mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
     prelude::*,
-    text::Text,
+    text::{Alignment, Text},
 };
 
 use ssd1322 as oled;
@@ -80,6 +80,64 @@ fn do_write(bytes: &[u8]) {
         }
     }
 }
+
+fn draw_titlebox<D>(d: &mut D, sy: u32, title: &str, fields: &[&str], values: &[u32]) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Gray4>,
+{
+
+    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
+    let thin_stroke_grey = PrimitiveStyle::with_stroke(Gray4::new(0x3), 1);
+    let character_style = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
+    let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+    let dy = 7u32;
+    let title_y = 10u32;
+    let box_y = (title_y + 3u32 + (fields.len() as u32) * dy);
+
+    Rectangle::new(Point::new(2, sy as i32), Size::new(60, box_y))
+        .into_styled(thin_stroke_grey)
+        .draw(d)?;
+
+    Rectangle::new(Point::new(2, sy as i32), Size::new(60, title_y))
+        .into_styled(thin_stroke)
+        .draw(d)?;
+
+    Text::with_alignment(
+        title,
+        Point::new(d.bounding_box().center().x, (sy as i32)+7),
+        character_style_h,
+        Alignment::Center,
+    )
+    .draw(d)?;
+
+    let mut sy = sy + title_y + 6;
+
+    for (f, v) in fields.iter().zip(values) {
+
+        let mut s: String<32> = String::new();
+        write!(&mut s, "{:#06x}", v).ok();
+
+        Text::with_alignment(
+            f,
+            Point::new(5, sy as i32),
+            character_style,
+            Alignment::Left,
+        )
+        .draw(d)?;
+
+        Text::with_alignment(
+            &s,
+            Point::new(60, sy as i32),
+            character_style,
+            Alignment::Right,
+        )
+        .draw(d)?;
+        sy += dy;
+    }
+
+    Ok(())
+}
+
 
 #[entry]
 fn main() -> ! {
@@ -145,6 +203,8 @@ fn main() -> ! {
 
     defmt::info!("Starting main loop --");
 
+    let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+
     loop {
         /*
 
@@ -169,8 +229,9 @@ fn main() -> ! {
         timer.delay_ms(1000u32);
         */
 
+
         let rect_style = PrimitiveStyleBuilder::new()
-            .stroke_color(Gray4::new(0x5))
+            .stroke_color(Gray4::new(0x2))
             .stroke_width(1)
             .fill_color(Gray4::BLACK)
             .build();
@@ -180,37 +241,57 @@ fn main() -> ! {
             .into_styled(rect_style)
             .draw(&mut disp).ok();
 
-        let circle = Circle::new(Point::new(22, 22), 20)
-            .into_styled(PrimitiveStyle::with_stroke(Gray4::WHITE, 1));
+        Text::with_alignment(
+            "<TEST UTIL>",
+            Point::new(disp.bounding_box().center().x, 10),
+            character_style,
+            Alignment::Center,
+        )
+        .draw(&mut disp).ok();
 
-        circle.draw(&mut disp).unwrap();
+        draw_titlebox(&mut disp, 16, "PMOD1", &[
+          "ser:",
+          "jck:",
+          "in0:",
+          "in1:",
+          "in2:",
+          "in3:",
+        ], &[
+            peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits().into(),
+            peripherals.EURORACK_PMOD0.csr_jack.read().bits().into(),
+            peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits().into(),
+            peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits().into(),
+            peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits().into(),
+            peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits().into(),
+        ]).ok();
 
-        let style = MonoTextStyle::new(&FONT_6X10, Gray4::WHITE);
+        draw_titlebox(&mut disp, 74, "PMOD2", &[
+          "ser:",
+          "jck:",
+          "in0:",
+          "in1:",
+          "in2:",
+          "in3:",
+        ], &[
+            peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits().into(),
+            peripherals.EURORACK_PMOD1.csr_jack.read().bits().into(),
+            peripherals.EURORACK_PMOD1.csr_cal_in0.read().bits().into(),
+            peripherals.EURORACK_PMOD1.csr_cal_in1.read().bits().into(),
+            peripherals.EURORACK_PMOD1.csr_cal_in2.read().bits().into(),
+            peripherals.EURORACK_PMOD1.csr_cal_in3.read().bits().into(),
+        ]).ok();
 
-        Text::new("Hello,\nRust!", Point::new(0, 12), style).draw(&mut disp).ok();
+        draw_titlebox(&mut disp, 132, "ENCODER", &[
+          "tick:",
+          "btn:",
+        ], &[0, 0]).ok();
 
-        let mut s: String<128> = String::new();
-        write!(&mut s, "serial0 {:#06x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32).ok();
-
-        Text::new(&s, Point::new(128, 12), style).draw(&mut disp).ok();
-
-        s.clear();
-
-        write!(&mut s, "serial1 {:#06x}", peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits() as u32).ok();
-
-        Text::new(&s, Point::new(128, 24), style).draw(&mut disp).ok();
-
-        s.clear();
-
-        write!(&mut s, "jack0 {:#06x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u32).ok();
-
-        Text::new(&s, Point::new(128, 36), style).draw(&mut disp).ok();
-
-        s.clear();
-
-        write!(&mut s, "jack1 {:#06x}", peripherals.EURORACK_PMOD1.csr_jack.read().bits() as u32).ok();
-
-        Text::new(&s, Point::new(128, 48), style).draw(&mut disp).ok();
+        draw_titlebox(&mut disp, 213, "MIDI", &[
+          "---",
+          "---",
+          "---",
+          "---",
+        ], &[0, 0, 0, 0]).ok();
 
         disp.flush();
 
