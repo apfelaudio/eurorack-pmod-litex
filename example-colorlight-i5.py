@@ -71,7 +71,12 @@ def add_eurorack_pmod(soc, sample_rate=48000):
 
 def add_usb(soc, base_addr=0xf0010000):
     soc.crg.cd_usb = ClockDomain()
+    usb_por_done = Signal()
+    usb_por_count = Signal(24, reset=int(60e6 * 10e-3))
     soc.comb += soc.crg.cd_usb.clk.eq(soc.crg.cd_sys.clk)
+    soc.comb += usb_por_done.eq(usb_por_count == 0)
+    soc.comb += soc.crg.cd_usb.rst.eq(~usb_por_done)
+    soc.sync.sys += If(~usb_por_done, usb_por_count.eq(usb_por_count - 1))
 
     soc.submodules.usb = LunaEpTriWrapper(soc.platform, base_addr=base_addr)
     region = soc.add_memory_region("usb", base_addr, 0x10000, type="");
