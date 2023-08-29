@@ -18,7 +18,7 @@ class WavetableOscillator(Module, AutoCSR):
         # Exposed signals
 
         self.rst = ResetSignal()
-        self.sample_clk = ClockSignal("sample_clk")
+        self.clk_fs = ClockSignal("clk_fs")
 
         self.wavetable_inc = Signal(32)
         self.out = Signal((w, True))
@@ -35,7 +35,7 @@ class WavetableOscillator(Module, AutoCSR):
 
             # Ports (clk + reset)
             i_rst = self.rst,
-            i_sample_clk = self.sample_clk,
+            i_sample_clk = self.clk_fs,
 
             # Ports (filter parameters)
             i_wavetable_inc = self.wavetable_inc,
@@ -57,8 +57,8 @@ class KarlsenLowPass(Module, AutoCSR):
         # Exposed signals
 
         self.rst = ResetSignal()
-        self.clk_12mhz = ClockSignal("sys")
-        self.sample_clk = ClockSignal("sample_clk")
+        self.clk_256fs = ClockSignal("clk_256fs")
+        self.clk_fs = ClockSignal("clk_fs")
 
         self.g = Signal((w, True))
         self.resonance = Signal((w, True))
@@ -77,8 +77,8 @@ class KarlsenLowPass(Module, AutoCSR):
 
             # Ports (clk + reset)
             i_rst = self.rst,
-            i_clk = self.clk_12mhz,
-            i_sample_clk = self.sample_clk,
+            i_clk = self.clk_256fs,
+            i_sample_clk = self.clk_fs,
 
             # Ports (filter parameters)
             i_g = self.g,
@@ -106,7 +106,7 @@ class DcBlock(Module):
 
         # Exposed signals
 
-        self.sample_clk = ClockSignal("sample_clk")
+        self.clk_fs = ClockSignal("clk_fs")
 
         self.sample_in = Signal((w, True))
         self.sample_out = Signal((w, True))
@@ -122,7 +122,7 @@ class DcBlock(Module):
             p_W = self.w,
 
             # Ports (clk + reset)
-            i_sample_clk = self.sample_clk,
+            i_sample_clk = self.clk_fs,
 
             # Ports (audio in/out)
             i_sample_in = self.sample_in,

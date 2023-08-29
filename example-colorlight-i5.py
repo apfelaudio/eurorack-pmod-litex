@@ -13,6 +13,7 @@ from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
 from litex.soc.cores.spi import SPIMaster
 from litex.soc.cores.gpio import GPIOOut
+from litex.soc.cores.uart import UARTPHY, UART
 from litex.soc.integration.builder import *
 
 from litex_boards.targets.colorlight_i5 import *
@@ -65,6 +66,11 @@ _io_eurolut_proto1 = [
         Subsignal("csn",  Pins("M1")),
         IOStandard("LVCMOS33"),
     ),
+    ("uart_midi", 0,
+        Subsignal("tx", Pins("B3")),
+        Subsignal("rx", Pins("K5")),
+        IOStandard("LVCMOS33")
+    ),
     ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
 ]
 
@@ -78,7 +84,7 @@ def add_audio_clocks(soc, sample_rate=46875):
     soc.sync.clk_256fs += clkdiv_fs.eq(clkdiv_fs+1)
     soc.comb += soc.crg.cd_clk_fs.clk.eq(clkdiv_fs[-1])
 
-def add_eurorack_pmod(soc, pads, mod_name):
+def add_eurorack_pmod_mirror(soc, pads, mod_name):
     # Instantiate a EurorackPmod.
     eurorack_pmod_pads = soc.platform.request(pads)
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
@@ -91,10 +97,41 @@ def add_eurorack_pmod(soc, pads, mod_name):
     ]
     soc.add_module(mod_name, eurorack_pmod)
 
+def add_eurorack_pmod_wave(soc, pads, mod_name):
+    # Instantiate a EurorackPmod.
+    eurorack_pmod_pads = soc.platform.request(pads)
+    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
+    # Pipe inputs straight to outputs.
+    soc.comb += [
+        eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
+        eurorack_pmod.cal_out1.eq(eurorack_pmod.cal_in1),
+        eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
+        eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
+    ]
+
+    N_VOICES = 4
+
+    for voice in range(N_VOICES):
+        osc = WavetableOscillator(soc.platform)
+        lpf = KarlsenLowPass(soc.platform)
+        dc_block = DcBlock(soc.platform)
+
+        soc.comb += [
+            lpf.sample_in.eq(osc.out),
+            dc_block.sample_in.eq(lpf.sample_out),
+            getattr(eurorack_pmod, f"cal_out{voice}").eq(dc_block.sample_out),
+        ]
+
+        soc.add_module(f"wavetable_oscillator{voice}", osc)
+        soc.add_module(f"karlsen_lpf{voice}", lpf)
+        soc.add_module(f"dc_block{voice}", dc_block)
+
+    soc.add_module(mod_name, eurorack_pmod)
+
 def add_oled(soc):
     pads = soc.platform.request("oled_spi")
     pads.miso = Signal()
-    spi_master = SPIMaster(pads, 8, sys_clk_freq=soc.sys_clk_freq, spi_clk_freq=1e6)
+    spi_master = SPIMaster(pads, 8, sys_clk_freq=soc.sys_clk_freq, spi_clk_freq=10e6)
     soc.submodules.oled_spi = spi_master
     spi_master.add_clk_divider()
     soc.submodules.oled_ctl = GPIOOut(soc.platform.request("oled_ctl"))
@@ -127,6 +164,17 @@ def add_usb(soc, base_addr=0xf0010000):
         setattr(soc.submodules, name, DummyIRQ(irq))
         soc.irq.add(name=name)
 
+def add_uart_midi(soc):
+    # Extra UART
+    uart_name = "uart_midi"
+    uart_pads      = soc.platform.request(uart_name, loose=True)
+    if uart_pads is None:
+        raise ValueError(f"pads for '{uart_name}' does not exist in platform")
+    uart_phy  = UARTPHY(uart_pads, clk_freq=soc.sys_clk_freq, baudrate=32500)
+    uart      = UART(uart_phy, tx_fifo_depth=16, rx_fifo_depth=16)
+    soc.add_module(name=f"{uart_name}_phy", module=uart_phy)
+    soc.add_module(name=uart_name, module=uart)
+    soc.irq.add(uart_name, use_loc_if_exists=True)
 
 def main():
     from litex.build.parser import LiteXArgumentParser
@@ -151,10 +199,12 @@ def main():
 
     add_audio_clocks(soc)
 
-    add_eurorack_pmod(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
-    add_eurorack_pmod(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
+    add_eurorack_pmod_wave(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
+    add_eurorack_pmod_mirror(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
 
     add_oled(soc)
+
+    add_uart_midi(soc)
 
     """
     # Useful to double-check connectivity ...
