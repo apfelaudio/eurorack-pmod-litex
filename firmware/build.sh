@@ -8,6 +8,7 @@ if [[ -z "$BOARD" ]]; then
 fi
 
 export BUILD_DIR=`pwd`/../build/${BOARD}
+echo "Using BUILD_DIR=$BUILD_DIR"
 
 # DEFMT logging level is fixed at firmware compile time.
 # You can use this to switch logging off completely.

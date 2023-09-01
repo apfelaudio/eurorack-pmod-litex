@@ -12,90 +12,104 @@ use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use core::fmt::Write;
-
-pub trait EurorackPmodTrait {
-    fn reset(&self);
-    fn read_eeprom_serial(&self) -> u32;
-    fn read_jack(&self) -> u32;
-    fn read_cal_in(&self, index: usize) -> u32;
-}
-
-macro_rules! impl_eurorack_pmod_trait {
-    ($($t:ty),+ $(,)?) => {
-        $(impl EurorackPmodTrait for $t {
-            fn reset(&self) {
-                self.csr_reset.write(|w| unsafe { w.bits(1) });
-                self.csr_reset.write(|w| unsafe { w.bits(0) });
-            }
-
-            fn read_eeprom_serial(&self) -> u32 {
-                self.csr_eeprom_serial.read().bits().into()
-            }
-
-            fn read_jack(&self) -> u32 {
-                self.csr_jack.read().bits().into()
-            }
-
-            fn read_cal_in(&self, index: usize) -> u32 {
-                match index {
-                    0 => self.csr_cal_in0.read().bits().into(),
-                    1 => self.csr_cal_in1.read().bits().into(),
-                    2 => self.csr_cal_in2.read().bits().into(),
-                    3 => self.csr_cal_in3.read().bits().into(),
-                    _ => panic!("Invalid index"),
-                }
-            }
-        })+
-    };
-}
-
-impl_eurorack_pmod_trait!(pac::EURORACK_PMOD0, pac::EURORACK_PMOD1);
-
-struct EurorackPmod<T: EurorackPmodTrait> {
-    pmod: T,
-}
-
-impl<T: EurorackPmodTrait> EurorackPmod<T> {
-    fn new(pmod: T) -> Self {
-        Self { pmod }
-    }
-
-    fn reset(&self) {
-        self.pmod.reset();
-    }
-
-    fn read_eeprom_serial(&self) -> u32 {
-        self.pmod.read_eeprom_serial()
-    }
-
-    fn read_jack(&self) -> u32 {
-        self.pmod.read_jack()
-    }
-
-    fn read_cal_in(&self) -> [u32; 4] {
-        [
-            self.pmod.read_cal_in(0),
-            self.pmod.read_cal_in(1),
-            self.pmod.read_cal_in(2),
-            self.pmod.read_cal_in(3),
-        ]
-    }
-}
-
 use embedded_midi::MidiIn;
 use midi_types::*;
 use micromath::F32Ext;
-use paste::paste;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
-    primitives::{Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle},
+    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle},
     mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
     prelude::*,
     text::{Alignment, Text},
 };
 
 use ssd1322 as oled;
+
+pub trait EurorackPmodTrait {
+    fn reset_line(&self, set_high: bool);
+    fn eeprom_serial(&self) -> u32;
+    fn jack(&self) -> u8;
+    fn input(&self, index: usize) -> i16;
+}
+
+pub trait WavetableOscillator {
+    fn set_skip(&self, value: u32);
+}
+
+pub trait KarlsenLpf {
+    fn set_cutoff(&self, value: i16);
+    fn set_resonance(&self, value: i16);
+}
+
+macro_rules! impl_eurorack_pmod_trait {
+    ($($t:ty),+ $(,)?) => {
+        $(impl EurorackPmodTrait for $t {
+            fn reset_line(&self, set_high: bool) {
+                self.csr_reset.write(|w| unsafe { w.bits(set_high as u32) });
+            }
+
+            fn eeprom_serial(&self) -> u32 {
+                self.csr_eeprom_serial.read().bits().into()
+            }
+
+            fn jack(&self) -> u8 {
+                self.csr_jack.read().bits() as u8
+            }
+
+            fn input(&self, index: usize) -> i16 {
+                (match index {
+                    0 => self.csr_cal_in0.read().bits(),
+                    1 => self.csr_cal_in1.read().bits(),
+                    2 => self.csr_cal_in2.read().bits(),
+                    3 => self.csr_cal_in3.read().bits(),
+                    _ => panic!("bad index"),
+                }) as i16
+            }
+        })+
+    };
+}
+
+macro_rules! impl_wavetable_oscillator {
+    ($($t:ty),+ $(,)?) => {
+        $(impl WavetableOscillator for $t {
+            fn set_skip(&self, value: u32) {
+                unsafe {
+                    self.csr_wavetable_inc.write(|w| w.csr_wavetable_inc().bits(value));
+                }
+            }
+        })+
+    };
+}
+
+
+macro_rules! impl_karlsen_lpf {
+    ($($t:ty),+ $(,)?) => {
+        $(impl KarlsenLpf for $t {
+            fn set_cutoff(&self, value: i16) {
+                unsafe {
+                    self.csr_g.write(|w| w.csr_g().bits(value as u16));
+                }
+            }
+            fn set_resonance(&self, value: i16) {
+                unsafe {
+                    self.csr_resonance.write(|w| w.csr_resonance().bits(value as u16));
+                }
+            }
+        })+
+    };
+}
+
+impl_eurorack_pmod_trait!(pac::EURORACK_PMOD0);
+impl_eurorack_pmod_trait!(pac::EURORACK_PMOD1);
+impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR0);
+impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR1);
+impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR2);
+impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR3);
+impl_karlsen_lpf!(pac::KARLSEN_LPF0);
+impl_karlsen_lpf!(pac::KARLSEN_LPF1);
+impl_karlsen_lpf!(pac::KARLSEN_LPF2);
+impl_karlsen_lpf!(pac::KARLSEN_LPF3);
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
 
@@ -211,34 +225,6 @@ impl VoiceManager {
     }
 }
 
-macro_rules! csr_read_n {
-    ($periph:ident, $module:ident, $field:ident) => {
-        paste! {
-            [
-                $periph.$module.[<$field 0>].read().bits(),
-                $periph.$module.[<$field 1>].read().bits(),
-                $periph.$module.[<$field 2>].read().bits(),
-                $periph.$module.[<$field 3>].read().bits(),
-            ]
-        }
-    };
-}
-
-macro_rules! csr_write_n {
-    ($periph:ident, $module:ident, $index:expr, $field:ident, $value:expr) => {
-        paste! {
-            unsafe {
-                match $index {
-                    0 => $periph.[<$module 0>].$field.write(|w| w.$field().bits($value)),
-                    1 => $periph.[<$module 1>].$field.write(|w| w.$field().bits($value)),
-                    2 => $periph.[<$module 2>].$field.write(|w| w.$field().bits($value)),
-                    3 => $periph.[<$module 3>].$field.write(|w| w.$field().bits($value)),
-                    _ => ()
-                }
-            }
-        }
-    };
-}
 
 fn draw_titlebox<D>(d: &mut D, sy: u32, title: &str, fields: &[&str], values: &[u32]) -> Result<(), D::Error>
 where
@@ -255,7 +241,7 @@ where
     let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
     let dy = 7u32;
     let title_y = 10u32;
-    let box_y = (title_y + 3u32 + (fields.len() as u32) * dy);
+    let box_y = title_y + 3u32 + (fields.len() as u32) * dy;
 
     Rectangle::new(Point::new(2, sy as i32), Size::new(60, box_y))
         .into_styled(thin_stroke_grey)
@@ -307,8 +293,22 @@ where
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
-    let eurorack_pmod0 = EurorackPmod::new(peripherals.EURORACK_PMOD0);
-    let eurorack_pmod1 = EurorackPmod::new(peripherals.EURORACK_PMOD1);
+    let pmod0 = peripherals.EURORACK_PMOD0;
+    let pmod1 = peripherals.EURORACK_PMOD1;
+
+    let osc: [&dyn WavetableOscillator; 4] = [
+        &peripherals.WAVETABLE_OSCILLATOR0,
+        &peripherals.WAVETABLE_OSCILLATOR1,
+        &peripherals.WAVETABLE_OSCILLATOR2,
+        &peripherals.WAVETABLE_OSCILLATOR3,
+    ];
+
+    let lpf: [&dyn KarlsenLpf; 4] = [
+        &peripherals.KARLSEN_LPF0,
+        &peripherals.KARLSEN_LPF1,
+        &peripherals.KARLSEN_LPF2,
+        &peripherals.KARLSEN_LPF3,
+    ];
 
     unsafe {
         UART_WRITER = Some(Uart::new(peripherals.UART));
@@ -321,12 +321,13 @@ fn main() -> ! {
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
 
-    let mut elapsed: f32 = 0.0f32;
-
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
-    eurorack_pmod0.reset(&mut timer);
-    eurorack_pmod1.reset(&mut timer);
+    pmod0.reset_line(true);
+    pmod1.reset_line(true);
+    timer.delay_ms(10u32);
+    pmod0.reset_line(false);
+    pmod1.reset_line(false);
 
     let dc = CTL { index: 0 };
     let mut rstn = CTL { index: 1 };
@@ -345,12 +346,12 @@ fn main() -> ! {
     csn.set_low().unwrap();
 
     // Assert the display's /RESET for 10ms.
-    timer.delay_ms(10_u16);
+    timer.delay_ms(10u32);
     rstn.set_low().unwrap();
-    timer.delay_ms(10_u16);
+    timer.delay_ms(10u32);
     rstn.set_high().unwrap();
 
-    timer.delay_ms(1_u16);
+    timer.delay_ms(1u16);
 
     let mut midi_in = MidiIn::new(uart_midi);
 
@@ -396,7 +397,6 @@ fn main() -> ! {
         .draw(&mut disp).ok();
 
 
-        let pmod1_values = eurorack_pmod1.read_cal_in();
         draw_titlebox(&mut disp, 74, "PMOD2", &[
           "ser:",
           "jck:",
@@ -405,12 +405,12 @@ fn main() -> ! {
           "in2:",
           "in3:",
         ], &[
-            eurorack_pmod1.read_eeprom_serial(),
-            eurorack_pmod1.read_jack(),
-            pmod1_values[0],
-            pmod1_values[1],
-            pmod1_values[2],
-            pmod1_values[3],
+            pmod1.eeprom_serial(),
+            pmod1.jack() as u32,
+            pmod1.input(0) as u32,
+            pmod1.input(1) as u32,
+            pmod1.input(2) as u32,
+            pmod1.input(3) as u32,
         ]).ok();
 
         draw_titlebox(&mut disp, 132, "ENCODER", &[
@@ -420,7 +420,6 @@ fn main() -> ! {
 
     loop {
 
-        let pmod0_values = eurorack_pmod0.read_cal_in();
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
           "jck:",
@@ -429,12 +428,12 @@ fn main() -> ! {
           "in2:",
           "in3:",
         ], &[
-            eurorack_pmod0.read_eeprom_serial(),
-            eurorack_pmod0.read_jack(),
-            pmod0_values[0],
-            pmod0_values[1],
-            pmod0_values[2],
-            pmod0_values[3],
+            pmod0.eeprom_serial(),
+            pmod0.jack() as u32,
+            pmod0.input(0) as u32,
+            pmod0.input(1) as u32,
+            pmod0.input(2) as u32,
+            pmod0.input(3) as u32,
         ]).ok();
 
         while let Ok(event) = midi_in.read() {
@@ -461,53 +460,15 @@ fn main() -> ! {
             }
         }
 
-        let ins = csr_read_n!(peripherals, EURORACK_PMOD0, csr_cal_in).map(|x| x as i16);
-
         for n_voice in 0..=3 {
             let mut write_skip = 0u32;
             if let VoiceState::On(_, skip) = voice_manager.voices[n_voice] {
                 write_skip = skip;
             }
-            csr_write_n!(
-                peripherals,
-                WAVETABLE_OSCILLATOR,
-                n_voice,
-                csr_wavetable_inc,
-                write_skip
-            );
-            csr_write_n!(peripherals, KARLSEN_LPF, n_voice, csr_g, ins[1] as u16);
-            csr_write_n!(
-                peripherals,
-                KARLSEN_LPF,
-                n_voice,
-                csr_resonance,
-                ins[2] as u16
-            );
+            osc[n_voice].set_skip(write_skip);
+            lpf[n_voice].set_cutoff(pmod0.input(1));
+            lpf[n_voice].set_resonance(pmod0.input(2));
         }
-        /*
-
-        defmt::info!("tick - elapsed {} sec", elapsed);
-        elapsed += 1.0f32;
-
-        defmt::info!("PMOD0");
-        defmt::info!("jack_detect {=u8:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
-        defmt::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
-        defmt::info!("input1 {}", peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits() as i16);
-        defmt::info!("input2 {}", peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits() as i16);
-        defmt::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
-        defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
-        timer.delay_ms(1000u32);
-        defmt::info!("PMOD1");
-        defmt::info!("jack_detect {=u8:x}", peripherals.EURORACK_PMOD1.csr_jack.read().bits() as u8);
-        defmt::info!("input0 {}", peripherals.EURORACK_PMOD1.csr_cal_in0.read().bits() as i16);
-        defmt::info!("input1 {}", peripherals.EURORACK_PMOD1.csr_cal_in1.read().bits() as i16);
-        defmt::info!("input2 {}", peripherals.EURORACK_PMOD1.csr_cal_in2.read().bits() as i16);
-        defmt::info!("input3 {}", peripherals.EURORACK_PMOD1.csr_cal_in3.read().bits() as i16);
-        defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits() as u32);
-        timer.delay_ms(1000u32);
-        */
-
-
 
 
         let mut v0 = 0u8;
