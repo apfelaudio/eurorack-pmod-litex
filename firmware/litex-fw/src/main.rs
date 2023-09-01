@@ -13,36 +13,73 @@ use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use core::fmt::Write;
 
-struct EurorackPmod {
-    pmod: pac::EURORACK_PMOD,
+pub trait EurorackPmodTrait {
+    fn csr_reset(&self) -> &pac::CSR<u32>;
+    fn csr_eeprom_serial(&self) -> &pac::CSR<u32>;
+    fn csr_jack(&self) -> &pac::CSR<u32>;
+    fn csr_cal_in(&self, index: usize) -> &pac::CSR<u32>;
 }
 
-impl EurorackPmod {
-    fn new(pmod: pac::EURORACK_PMOD) -> Self {
+macro_rules! impl_eurorack_pmod_trait {
+    ($($t:ty),+ $(,)?) => {
+        $(impl EurorackPmodTrait for $t {
+            fn csr_reset(&self) -> &pac::CSR<u32> {
+                &self.csr_reset
+            }
+
+            fn csr_eeprom_serial(&self) -> &pac::CSR<u32> {
+                &self.csr_eeprom_serial
+            }
+
+            fn csr_jack(&self) -> &pac::CSR<u32> {
+                &self.csr_jack
+            }
+
+            fn csr_cal_in(&self, index: usize) -> &pac::CSR<u32> {
+                match index {
+                    0 => &self.csr_cal_in0,
+                    1 => &self.csr_cal_in1,
+                    2 => &self.csr_cal_in2,
+                    3 => &self.csr_cal_in3,
+                    _ => panic!("Invalid index"),
+                }
+            }
+        })+
+    };
+}
+
+impl_eurorack_pmod_trait!(pac::EURORACK_PMOD0, pac::EURORACK_PMOD1);
+
+struct EurorackPmod<T: EurorackPmodTrait> {
+    pmod: T,
+}
+
+impl<T: EurorackPmodTrait> EurorackPmod<T> {
+    fn new(pmod: T) -> Self {
         Self { pmod }
     }
 
     fn reset(&self, timer: &mut Timer) {
         timer.delay_ms(100u32);
-        self.pmod.csr_reset.write(|w| unsafe { w.bits(1) });
+        self.pmod.csr_reset().write(|w| unsafe { w.bits(1) });
         timer.delay_ms(100u32);
-        self.pmod.csr_reset.write(|w| unsafe { w.bits(0) });
+        self.pmod.csr_reset().write(|w| unsafe { w.bits(0) });
     }
 
     fn read_eeprom_serial(&self) -> u32 {
-        self.pmod.csr_eeprom_serial.read().bits().into()
+        self.pmod.csr_eeprom_serial().read().bits().into()
     }
 
     fn read_jack(&self) -> u32 {
-        self.pmod.csr_jack.read().bits().into()
+        self.pmod.csr_jack().read().bits().into()
     }
 
     fn read_cal_in(&self) -> [u32; 4] {
         [
-            self.pmod.csr_cal_in0.read().bits().into(),
-            self.pmod.csr_cal_in1.read().bits().into(),
-            self.pmod.csr_cal_in2.read().bits().into(),
-            self.pmod.csr_cal_in3.read().bits().into(),
+            self.pmod.csr_cal_in(0).read().bits().into(),
+            self.pmod.csr_cal_in(1).read().bits().into(),
+            self.pmod.csr_cal_in(2).read().bits().into(),
+            self.pmod.csr_cal_in(3).read().bits().into(),
         ]
     }
 }
