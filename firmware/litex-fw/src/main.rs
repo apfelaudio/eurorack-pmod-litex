@@ -2,8 +2,6 @@
 #![no_main]
 #![allow(dead_code)]
 
-use core::panic::PanicInfo;
-use defmt;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use litex_pac as pac;
@@ -11,10 +9,9 @@ use riscv;
 use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
-use core::fmt::Write;
 use embedded_midi::MidiIn;
 use midi_types::*;
-use micromath::F32Ext;
+use ufmt;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
@@ -26,11 +23,13 @@ use embedded_graphics::{
 
 use ssd1322 as oled;
 
+mod log;
 mod voice;
 mod gw;
 
 use voice::*;
 use gw::*;
+use log::*;
 
 eurorack_pmod!(pac::EURORACK_PMOD0);
 eurorack_pmod!(pac::EURORACK_PMOD1);
@@ -44,31 +43,6 @@ karlsen_lpf!(pac::KARLSEN_LPF2);
 karlsen_lpf!(pac::KARLSEN_LPF3);
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
-
-const N_WAVETABLE: u32 = 256;
-const F_A3: f32 = 440f32;
-const F_S: f32 = 93.75f32;
-
-fn volt_to_skip(v: f32) -> u32 {
-    (((N_WAVETABLE as f32 * F_A3) / F_S) * 2.0f32.powf(v - 3.75f32)) as u32
-}
-
-fn note_to_volt(midi_note: Note) -> f32 {
-    let result = (((3 * 12) + u8::from(midi_note)) - 69) as f32 / 12.0f32;
-    if result > 0.0f32 {
-        result
-    } else {
-        0.0f32
-    }
-}
-
-// Globals used by `defmt` logger such that we can log to UART from anywhere.
-static mut ENCODER: defmt::Encoder = defmt::Encoder::new();
-static mut UART_WRITER: Option<Uart> = None;
-
-litex_hal::uart! {
-    Uart: litex_pac::UART,
-}
 
 litex_hal::uart! {
     UartMidi: litex_pac::UART_MIDI,
@@ -85,44 +59,6 @@ litex_hal::gpio! {
 litex_hal::spi! {
     SPI: (litex_pac::OLED_SPI, u8),
 }
-
-#[defmt::global_logger]
-struct Logger;
-
-unsafe impl defmt::Logger for Logger {
-    fn acquire() {
-        unsafe {
-            riscv::interrupt::disable();
-            ENCODER.start_frame(do_write);
-        }
-    }
-    unsafe fn flush() {}
-    unsafe fn release() {
-        ENCODER.end_frame(do_write);
-        unsafe {
-            riscv::interrupt::enable();
-        }
-    }
-    unsafe fn write(bytes: &[u8]) {
-        ENCODER.write(bytes, do_write);
-    }
-}
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    defmt::error!("{}", defmt::Display2Format(info));
-    loop {}
-}
-
-fn do_write(bytes: &[u8]) {
-    unsafe {
-        if let Some(writer) = &mut UART_WRITER {
-            writer.bwrite_all(bytes).ok();
-        }
-    }
-}
-
-
 
 fn draw_titlebox<D>(d: &mut D, sy: u32, title: &str, fields: &[&str], values: &[u32]) -> Result<(), D::Error>
 where
@@ -162,7 +98,7 @@ where
     for (f, v) in fields.iter().zip(values) {
 
         let mut s: String<32> = String::new();
-        write!(&mut s, "{:#06x}", v).ok();
+        ufmt::uwrite!(&mut s, "{:#06x}", *v).ok();
 
         Text::with_alignment(
             f,
@@ -191,6 +127,10 @@ where
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
+
+    log::init(peripherals.UART);
+    log::info!("hello from litex-fw!");
+
     let pmod0 = peripherals.EURORACK_PMOD0;
     let pmod1 = peripherals.EURORACK_PMOD1;
 
@@ -208,14 +148,6 @@ fn main() -> ! {
         &peripherals.KARLSEN_LPF3,
     ];
 
-    unsafe {
-        UART_WRITER = Some(Uart::new(peripherals.UART));
-        if let Some(writer) = &mut UART_WRITER {
-            writer
-                .bwrite_all(b"hello from litex-fw! dropping to defmt logging --\n")
-                .ok();
-        }
-    }
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
 
@@ -271,8 +203,6 @@ fn main() -> ! {
        ).unwrap();
 
 
-    defmt::info!("Starting main loop --");
-
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
 
         let rect_style = PrimitiveStyleBuilder::new()
@@ -282,14 +212,47 @@ fn main() -> ! {
             .build();
 
 
+    disp
+        .bounding_box()
+        .into_styled(rect_style)
+        .draw(&mut disp).ok();
+
+    Text::with_alignment(
+        "<TEST UTIL>",
+        Point::new(disp.bounding_box().center().x, 10),
+        character_style,
+        Alignment::Center,
+    )
+    .draw(&mut disp).ok();
+
+
+    draw_titlebox(&mut disp, 74, "PMOD2", &[
+      "ser:",
+      "jck:",
+      "in0:",
+      "in1:",
+      "in2:",
+      "in3:",
+    ], &[
+        pmod1.eeprom_serial(),
+        pmod1.jack() as u32,
+        pmod1.input(0) as u32,
+        pmod1.input(1) as u32,
+        pmod1.input(2) as u32,
+        pmod1.input(3) as u32,
+    ]).ok();
+
+    draw_titlebox(&mut disp, 132, "ENCODER", &[
+      "tick:",
+      "btn:",
+    ], &[0, 0]).ok();
+
     loop {
 
         while let Ok(event) = midi_in.read() {
-            //defmt::info!("MIDI event: {:?}", defmt::Debug2Format(&event));
-            //update_skip = Some(volt_to_skip(note_to_volt(note)) as u32)
             match event {
                 MidiMessage::NoteOn(_, note, velocity) => {
-                    defmt::info!(
+                    log::info!(
                         "note on: note={} vel={}",
                         u8::from(note),
                         u8::from(velocity)
@@ -297,7 +260,7 @@ fn main() -> ! {
                     voice_manager.note_on(note);
                 }
                 MidiMessage::NoteOff(_, note, velocity) => {
-                    defmt::info!(
+                    log::info!(
                         "note off: note={} vel={}",
                         u8::from(note),
                         u8::from(velocity)
@@ -326,19 +289,6 @@ fn main() -> ! {
             }
         }
 
-        disp
-            .bounding_box()
-            .into_styled(rect_style)
-            .draw(&mut disp).ok();
-
-        Text::with_alignment(
-            "<TEST UTIL>",
-            Point::new(disp.bounding_box().center().x, 10),
-            character_style,
-            Alignment::Center,
-        )
-        .draw(&mut disp).ok();
-
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
           "jck:",
@@ -355,26 +305,6 @@ fn main() -> ! {
             pmod0.input(3) as u32,
         ]).ok();
 
-        draw_titlebox(&mut disp, 74, "PMOD2", &[
-          "ser:",
-          "jck:",
-          "in0:",
-          "in1:",
-          "in2:",
-          "in3:",
-        ], &[
-            pmod1.eeprom_serial(),
-            pmod1.jack() as u32,
-            pmod1.input(0) as u32,
-            pmod1.input(1) as u32,
-            pmod1.input(2) as u32,
-            pmod1.input(3) as u32,
-        ]).ok();
-
-        draw_titlebox(&mut disp, 132, "ENCODER", &[
-          "tick:",
-          "btn:",
-        ], &[0, 0]).ok();
 
         draw_titlebox(&mut disp, 213, "MIDI", &[
           "v0",

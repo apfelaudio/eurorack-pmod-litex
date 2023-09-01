@@ -11,10 +11,10 @@ riscv-rt = "*"
 litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
 litex-pac = { path = "../litex-pac", features = ["rt"] }
 ssd1322 = { path = "../ssd1322", features = [] }
-defmt = "0.3.4"
 embedded-midi = { path = "../deps/embedded-midi" }
 micromath = "2.0.0"
 midi-types = "0.1.7"
 paste = "1.0.14"
 embedded-graphics = "0.8.1"
-heapless = "0.7.16"
+heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+ufmt = "0.2.0"
