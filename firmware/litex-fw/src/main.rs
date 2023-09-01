@@ -13,6 +13,40 @@ use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use core::fmt::Write;
 
+struct EurorackPmod {
+    pmod: pac::EURORACK_PMOD,
+}
+
+impl EurorackPmod {
+    fn new(pmod: pac::EURORACK_PMOD) -> Self {
+        Self { pmod }
+    }
+
+    fn reset(&self, timer: &mut Timer) {
+        timer.delay_ms(100u32);
+        self.pmod.csr_reset.write(|w| unsafe { w.bits(1) });
+        timer.delay_ms(100u32);
+        self.pmod.csr_reset.write(|w| unsafe { w.bits(0) });
+    }
+
+    fn read_eeprom_serial(&self) -> u32 {
+        self.pmod.csr_eeprom_serial.read().bits().into()
+    }
+
+    fn read_jack(&self) -> u32 {
+        self.pmod.csr_jack.read().bits().into()
+    }
+
+    fn read_cal_in(&self) -> [u32; 4] {
+        [
+            self.pmod.csr_cal_in0.read().bits().into(),
+            self.pmod.csr_cal_in1.read().bits().into(),
+            self.pmod.csr_cal_in2.read().bits().into(),
+            self.pmod.csr_cal_in3.read().bits().into(),
+        ]
+    }
+}
+
 use embedded_midi::MidiIn;
 use midi_types::*;
 use micromath::F32Ext;
@@ -238,6 +272,8 @@ where
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
+    let eurorack_pmod0 = EurorackPmod::new(peripherals.EURORACK_PMOD0);
+    let eurorack_pmod1 = EurorackPmod::new(peripherals.EURORACK_PMOD1);
 
     unsafe {
         UART_WRITER = Some(Uart::new(peripherals.UART));
@@ -254,12 +290,8 @@ fn main() -> ! {
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
-    timer.delay_ms(100u32);
-    peripherals.EURORACK_PMOD0.csr_reset.write(|w| unsafe { w.bits(1) });
-    peripherals.EURORACK_PMOD1.csr_reset.write(|w| unsafe { w.bits(1) });
-    timer.delay_ms(100u32);
-    peripherals.EURORACK_PMOD0.csr_reset.write(|w| unsafe { w.bits(0) });
-    peripherals.EURORACK_PMOD1.csr_reset.write(|w| unsafe { w.bits(0) });
+    eurorack_pmod0.reset(&mut timer);
+    eurorack_pmod1.reset(&mut timer);
 
     let dc = CTL { index: 0 };
     let mut rstn = CTL { index: 1 };
@@ -329,6 +361,7 @@ fn main() -> ! {
         .draw(&mut disp).ok();
 
 
+        let pmod1_values = eurorack_pmod1.read_cal_in();
         draw_titlebox(&mut disp, 74, "PMOD2", &[
           "ser:",
           "jck:",
@@ -337,12 +370,12 @@ fn main() -> ! {
           "in2:",
           "in3:",
         ], &[
-            peripherals.EURORACK_PMOD1.csr_eeprom_serial.read().bits().into(),
-            peripherals.EURORACK_PMOD1.csr_jack.read().bits().into(),
-            peripherals.EURORACK_PMOD1.csr_cal_in0.read().bits().into(),
-            peripherals.EURORACK_PMOD1.csr_cal_in1.read().bits().into(),
-            peripherals.EURORACK_PMOD1.csr_cal_in2.read().bits().into(),
-            peripherals.EURORACK_PMOD1.csr_cal_in3.read().bits().into(),
+            eurorack_pmod1.read_eeprom_serial(),
+            eurorack_pmod1.read_jack(),
+            pmod1_values[0],
+            pmod1_values[1],
+            pmod1_values[2],
+            pmod1_values[3],
         ]).ok();
 
         draw_titlebox(&mut disp, 132, "ENCODER", &[
@@ -352,6 +385,7 @@ fn main() -> ! {
 
     loop {
 
+        let pmod0_values = eurorack_pmod0.read_cal_in();
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
           "jck:",
@@ -360,12 +394,12 @@ fn main() -> ! {
           "in2:",
           "in3:",
         ], &[
-            peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits().into(),
-            peripherals.EURORACK_PMOD0.csr_jack.read().bits().into(),
-            peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits().into(),
-            peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits().into(),
-            peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits().into(),
-            peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits().into(),
+            eurorack_pmod0.read_eeprom_serial(),
+            eurorack_pmod0.read_jack(),
+            pmod0_values[0],
+            pmod0_values[1],
+            pmod0_values[2],
+            pmod0_values[3],
         ]).ok();
 
         while let Ok(event) = midi_in.read() {
