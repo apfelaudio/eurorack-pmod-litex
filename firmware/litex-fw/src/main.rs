@@ -26,92 +26,41 @@ use embedded_graphics::{
 
 use ssd1322 as oled;
 
-pub trait EurorackPmodTrait {
-    fn reset_line(&self, set_high: bool);
-    fn eeprom_serial(&self) -> u32;
-    fn jack(&self) -> u8;
-    fn input(&self, index: usize) -> i16;
-}
+mod voice;
+mod gw;
 
-pub trait WavetableOscillator {
-    fn set_skip(&self, value: u32);
-}
+use voice::*;
+use gw::*;
 
-pub trait KarlsenLpf {
-    fn set_cutoff(&self, value: i16);
-    fn set_resonance(&self, value: i16);
-}
-
-macro_rules! impl_eurorack_pmod_trait {
-    ($($t:ty),+ $(,)?) => {
-        $(impl EurorackPmodTrait for $t {
-            fn reset_line(&self, set_high: bool) {
-                self.csr_reset.write(|w| unsafe { w.bits(set_high as u32) });
-            }
-
-            fn eeprom_serial(&self) -> u32 {
-                self.csr_eeprom_serial.read().bits().into()
-            }
-
-            fn jack(&self) -> u8 {
-                self.csr_jack.read().bits() as u8
-            }
-
-            fn input(&self, index: usize) -> i16 {
-                (match index {
-                    0 => self.csr_cal_in0.read().bits(),
-                    1 => self.csr_cal_in1.read().bits(),
-                    2 => self.csr_cal_in2.read().bits(),
-                    3 => self.csr_cal_in3.read().bits(),
-                    _ => panic!("bad index"),
-                }) as i16
-            }
-        })+
-    };
-}
-
-macro_rules! impl_wavetable_oscillator {
-    ($($t:ty),+ $(,)?) => {
-        $(impl WavetableOscillator for $t {
-            fn set_skip(&self, value: u32) {
-                unsafe {
-                    self.csr_wavetable_inc.write(|w| w.csr_wavetable_inc().bits(value));
-                }
-            }
-        })+
-    };
-}
-
-
-macro_rules! impl_karlsen_lpf {
-    ($($t:ty),+ $(,)?) => {
-        $(impl KarlsenLpf for $t {
-            fn set_cutoff(&self, value: i16) {
-                unsafe {
-                    self.csr_g.write(|w| w.csr_g().bits(value as u16));
-                }
-            }
-            fn set_resonance(&self, value: i16) {
-                unsafe {
-                    self.csr_resonance.write(|w| w.csr_resonance().bits(value as u16));
-                }
-            }
-        })+
-    };
-}
-
-impl_eurorack_pmod_trait!(pac::EURORACK_PMOD0);
-impl_eurorack_pmod_trait!(pac::EURORACK_PMOD1);
-impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR0);
-impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR1);
-impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR2);
-impl_wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR3);
-impl_karlsen_lpf!(pac::KARLSEN_LPF0);
-impl_karlsen_lpf!(pac::KARLSEN_LPF1);
-impl_karlsen_lpf!(pac::KARLSEN_LPF2);
-impl_karlsen_lpf!(pac::KARLSEN_LPF3);
+eurorack_pmod!(pac::EURORACK_PMOD0);
+eurorack_pmod!(pac::EURORACK_PMOD1);
+wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR0);
+wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR1);
+wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR2);
+wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR3);
+karlsen_lpf!(pac::KARLSEN_LPF0);
+karlsen_lpf!(pac::KARLSEN_LPF1);
+karlsen_lpf!(pac::KARLSEN_LPF2);
+karlsen_lpf!(pac::KARLSEN_LPF3);
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
+
+const N_WAVETABLE: u32 = 256;
+const F_A3: f32 = 440f32;
+const F_S: f32 = 93.75f32;
+
+fn volt_to_skip(v: f32) -> u32 {
+    (((N_WAVETABLE as f32 * F_A3) / F_S) * 2.0f32.powf(v - 3.75f32)) as u32
+}
+
+fn note_to_volt(midi_note: Note) -> f32 {
+    let result = (((3 * 12) + u8::from(midi_note)) - 69) as f32 / 12.0f32;
+    if result > 0.0f32 {
+        result
+    } else {
+        0.0f32
+    }
+}
 
 // Globals used by `defmt` logger such that we can log to UART from anywhere.
 static mut ENCODER: defmt::Encoder = defmt::Encoder::new();
@@ -173,57 +122,6 @@ fn do_write(bytes: &[u8]) {
     }
 }
 
-const N_WAVETABLE: u32 = 256;
-const F_A3: f32 = 440f32;
-const F_S: f32 = 93.75f32;
-
-fn volt_to_skip(v: f32) -> u32 {
-    (((N_WAVETABLE as f32 * F_A3) / F_S) * 2.0f32.powf(v - 3.75f32)) as u32
-}
-
-fn note_to_volt(midi_note: Note) -> f32 {
-    let result = (((3 * 12) + u8::from(midi_note)) - 69) as f32 / 12.0f32;
-    if result > 0.0f32 {
-        result
-    } else {
-        0.0f32
-    }
-}
-
-const N_VOICES: usize = 4;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum VoiceState {
-    Off,
-    On(Note, u32),
-}
-
-struct VoiceManager {
-    voices: [VoiceState; N_VOICES],
-}
-
-impl VoiceManager {
-    // For now we don't cull the oldest notes...
-    fn note_on(&mut self, note: Note) {
-        for v in self.voices.iter_mut() {
-            if *v == VoiceState::Off {
-                let skip = volt_to_skip(note_to_volt(note)) as u32;
-                *v = VoiceState::On(note, skip);
-                return;
-            }
-        }
-    }
-
-    fn note_off(&mut self, note: Note) {
-        for v in self.voices.iter_mut() {
-            if let VoiceState::On(v_note, _) = *v {
-                if note == v_note {
-                    *v = VoiceState::Off;
-                }
-            }
-        }
-    }
-}
 
 
 fn draw_titlebox<D>(d: &mut D, sy: u32, title: &str, fields: &[&str], values: &[u32]) -> Result<(), D::Error>
@@ -296,14 +194,14 @@ fn main() -> ! {
     let pmod0 = peripherals.EURORACK_PMOD0;
     let pmod1 = peripherals.EURORACK_PMOD1;
 
-    let osc: [&dyn WavetableOscillator; 4] = [
+    let osc: [&dyn gw::WavetableOscillator; 4] = [
         &peripherals.WAVETABLE_OSCILLATOR0,
         &peripherals.WAVETABLE_OSCILLATOR1,
         &peripherals.WAVETABLE_OSCILLATOR2,
         &peripherals.WAVETABLE_OSCILLATOR3,
     ];
 
-    let lpf: [&dyn KarlsenLpf; 4] = [
+    let lpf: [&dyn gw::KarlsenLpf; 4] = [
         &peripherals.KARLSEN_LPF0,
         &peripherals.KARLSEN_LPF1,
         &peripherals.KARLSEN_LPF2,
@@ -383,58 +281,8 @@ fn main() -> ! {
             .fill_color(Gray4::BLACK)
             .build();
 
-        disp
-            .bounding_box()
-            .into_styled(rect_style)
-            .draw(&mut disp).ok();
-
-        Text::with_alignment(
-            "<TEST UTIL>",
-            Point::new(disp.bounding_box().center().x, 10),
-            character_style,
-            Alignment::Center,
-        )
-        .draw(&mut disp).ok();
-
-
-        draw_titlebox(&mut disp, 74, "PMOD2", &[
-          "ser:",
-          "jck:",
-          "in0:",
-          "in1:",
-          "in2:",
-          "in3:",
-        ], &[
-            pmod1.eeprom_serial(),
-            pmod1.jack() as u32,
-            pmod1.input(0) as u32,
-            pmod1.input(1) as u32,
-            pmod1.input(2) as u32,
-            pmod1.input(3) as u32,
-        ]).ok();
-
-        draw_titlebox(&mut disp, 132, "ENCODER", &[
-          "tick:",
-          "btn:",
-        ], &[0, 0]).ok();
 
     loop {
-
-        draw_titlebox(&mut disp, 16, "PMOD1", &[
-          "ser:",
-          "jck:",
-          "in0:",
-          "in1:",
-          "in2:",
-          "in3:",
-        ], &[
-            pmod0.eeprom_serial(),
-            pmod0.jack() as u32,
-            pmod0.input(0) as u32,
-            pmod0.input(1) as u32,
-            pmod0.input(2) as u32,
-            pmod0.input(3) as u32,
-        ]).ok();
 
         while let Ok(event) = midi_in.read() {
             //defmt::info!("MIDI event: {:?}", defmt::Debug2Format(&event));
@@ -471,22 +319,62 @@ fn main() -> ! {
         }
 
 
-        let mut v0 = 0u8;
-        if let VoiceState::On(note, _) = voice_manager.voices[0] {
-            v0 = u8::from(note);
+        let mut v = [0u8; 4];
+        for (i, voice) in v.iter_mut().enumerate() {
+            if let VoiceState::On(note, _) = voice_manager.voices[i] {
+                *voice = u8::from(note);
+            }
         }
-        let mut v1 = 0u8;
-        if let VoiceState::On(note, _) = voice_manager.voices[1] {
-            v1 = u8::from(note);
-        }
-        let mut v2 = 0u8;
-        if let VoiceState::On(note, _) = voice_manager.voices[2] {
-            v2 = u8::from(note);
-        }
-        let mut v3 = 0u8;
-        if let VoiceState::On(note, _) = voice_manager.voices[3] {
-            v3 = u8::from(note);
-        }
+
+        disp
+            .bounding_box()
+            .into_styled(rect_style)
+            .draw(&mut disp).ok();
+
+        Text::with_alignment(
+            "<TEST UTIL>",
+            Point::new(disp.bounding_box().center().x, 10),
+            character_style,
+            Alignment::Center,
+        )
+        .draw(&mut disp).ok();
+
+        draw_titlebox(&mut disp, 16, "PMOD1", &[
+          "ser:",
+          "jck:",
+          "in0:",
+          "in1:",
+          "in2:",
+          "in3:",
+        ], &[
+            pmod0.eeprom_serial(),
+            pmod0.jack() as u32,
+            pmod0.input(0) as u32,
+            pmod0.input(1) as u32,
+            pmod0.input(2) as u32,
+            pmod0.input(3) as u32,
+        ]).ok();
+
+        draw_titlebox(&mut disp, 74, "PMOD2", &[
+          "ser:",
+          "jck:",
+          "in0:",
+          "in1:",
+          "in2:",
+          "in3:",
+        ], &[
+            pmod1.eeprom_serial(),
+            pmod1.jack() as u32,
+            pmod1.input(0) as u32,
+            pmod1.input(1) as u32,
+            pmod1.input(2) as u32,
+            pmod1.input(3) as u32,
+        ]).ok();
+
+        draw_titlebox(&mut disp, 132, "ENCODER", &[
+          "tick:",
+          "btn:",
+        ], &[0, 0]).ok();
 
         draw_titlebox(&mut disp, 213, "MIDI", &[
           "v0",
@@ -494,13 +382,12 @@ fn main() -> ! {
           "v2",
           "v3",
         ], &[
-          v0.into(),
-          v1.into(),
-          v2.into(),
-          v3.into()
+          v[0].into(),
+          v[1].into(),
+          v[2].into(),
+          v[3].into()
         ]).ok();
 
         disp.flush();
-
     }
 }
