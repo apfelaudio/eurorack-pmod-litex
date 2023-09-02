@@ -132,7 +132,7 @@ def add_eurorack_pmod_mirror(soc, pads, mod_name):
     ]
     soc.add_module(mod_name, eurorack_pmod)
 
-def add_eurorack_pmod_wave(soc, pads, mod_name):
+def add_eurorack_pmod_shifter(soc, pads, mod_name):
     # Instantiate a EurorackPmod.
     eurorack_pmod_pads = soc.platform.request(pads)
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
@@ -147,17 +147,18 @@ def add_eurorack_pmod_wave(soc, pads, mod_name):
     N_VOICES = 4
 
     for voice in range(N_VOICES):
-        osc = WavetableOscillator(soc.platform)
+        pitch_shift = PitchShift(soc.platform)
         lpf = KarlsenLowPass(soc.platform)
         dc_block = DcBlock(soc.platform)
 
         soc.comb += [
-            lpf.sample_in.eq(osc.out),
+            pitch_shift.sample_in.eq(eurorack_pmod.cal_in0),
+            lpf.sample_in.eq(pitch_shift.sample_out),
             dc_block.sample_in.eq(lpf.sample_out),
             getattr(eurorack_pmod, f"cal_out{voice}").eq(dc_block.sample_out),
         ]
 
-        soc.add_module(f"wavetable_oscillator{voice}", osc)
+        soc.add_module(f"pitch_shift{voice}", pitch_shift)
         soc.add_module(f"karlsen_lpf{voice}", lpf)
         soc.add_module(f"dc_block{voice}", dc_block)
 
@@ -289,7 +290,7 @@ def main():
 
     add_audio_clocks(soc)
 
-    add_eurorack_pmod_wave(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
+    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
     add_eurorack_pmod_mirror(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
 
     add_oled(soc)

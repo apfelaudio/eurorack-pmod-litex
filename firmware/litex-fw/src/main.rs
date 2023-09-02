@@ -33,10 +33,10 @@ use log::*;
 
 eurorack_pmod!(pac::EURORACK_PMOD0);
 eurorack_pmod!(pac::EURORACK_PMOD1);
-wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR0);
-wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR1);
-wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR2);
-wavetable_oscillator!(pac::WAVETABLE_OSCILLATOR3);
+pitch_shift!(pac::PITCH_SHIFT0);
+pitch_shift!(pac::PITCH_SHIFT1);
+pitch_shift!(pac::PITCH_SHIFT2);
+pitch_shift!(pac::PITCH_SHIFT3);
 karlsen_lpf!(pac::KARLSEN_LPF0);
 karlsen_lpf!(pac::KARLSEN_LPF1);
 karlsen_lpf!(pac::KARLSEN_LPF2);
@@ -134,11 +134,11 @@ fn main() -> ! {
     let pmod0 = peripherals.EURORACK_PMOD0;
     let pmod1 = peripherals.EURORACK_PMOD1;
 
-    let osc: [&dyn gw::WavetableOscillator; 4] = [
-        &peripherals.WAVETABLE_OSCILLATOR0,
-        &peripherals.WAVETABLE_OSCILLATOR1,
-        &peripherals.WAVETABLE_OSCILLATOR2,
-        &peripherals.WAVETABLE_OSCILLATOR3,
+    let shifter: [&dyn gw::PitchShift; 4] = [
+        &peripherals.PITCH_SHIFT0,
+        &peripherals.PITCH_SHIFT1,
+        &peripherals.PITCH_SHIFT2,
+        &peripherals.PITCH_SHIFT3,
     ];
 
     let lpf: [&dyn gw::KarlsenLpf; 4] = [
@@ -248,13 +248,15 @@ fn main() -> ! {
         }
 
         for n_voice in 0..=3 {
-            let mut write_skip = 0u32;
-            if let VoiceState::On(_, skip) = voice_manager.voices[n_voice] {
-                write_skip = skip;
+            if let VoiceState::On(_, pitch) = voice_manager.voices[n_voice] {
+                shifter[n_voice].set_pitch(pitch);
+                lpf[n_voice].set_cutoff(10000i16);
+                lpf[n_voice].set_resonance(10000i16);
+            } else {
+                shifter[n_voice].set_pitch(0);
+                lpf[n_voice].set_cutoff(0i16);
+                lpf[n_voice].set_resonance(0i16);
             }
-            osc[n_voice].set_skip(write_skip);
-            lpf[n_voice].set_cutoff(pmod0.input(1));
-            lpf[n_voice].set_resonance(pmod0.input(2));
         }
 
 
@@ -273,7 +275,11 @@ fn main() -> ! {
         )
         .draw(&mut disp).ok();
 
+        if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
+            peripherals.CTRL.reset.write(|w| unsafe { w.soc_rst().bit(true) });
+        }
 
+        /*
         draw_titlebox(&mut disp, 74, "PMOD2", &[
           "ser:",
           "jck:",
@@ -298,9 +304,6 @@ fn main() -> ! {
           peripherals.ENCODER_BUTTON.in_.read().bits(),
         ]).ok();
 
-        if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
-            peripherals.CTRL.reset.write(|w| unsafe { w.soc_rst().bit(true) });
-        }
 
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
@@ -317,6 +320,7 @@ fn main() -> ! {
             pmod0.input(2) as u32,
             pmod0.input(3) as u32,
         ]).ok();
+        */
 
 
         draw_titlebox(&mut disp, 190, "MIDI", &[

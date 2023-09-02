@@ -6,28 +6,16 @@ pub const N_VOICES: usize = 4;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum VoiceState {
     Off,
-    On(Note, u32),
-}
-
-const N_WAVETABLE: u32 = 256;
-const F_A3: f32 = 440f32;
-const F_S: f32 = 93.75f32;
-
-fn volt_to_skip(v: f32) -> u32 {
-    (((N_WAVETABLE as f32 * F_A3) / F_S) * 2.0f32.powf(v - 3.75f32)) as u32
-}
-
-fn note_to_volt(midi_note: Note) -> f32 {
-    let result = (((3 * 12) + u8::from(midi_note)) - 69) as f32 / 12.0f32;
-    if result > 0.0f32 {
-        result
-    } else {
-        0.0f32
-    }
+    On(Note, i16),
 }
 
 pub struct VoiceManager {
     pub voices: [VoiceState; N_VOICES],
+}
+
+fn note_to_pitch(note: u8) -> i16 {
+    let scale = 2.0f32.powf(((note as i16) - 60) as f32 / 12.0f32);
+    ((1.0f32 - scale) * 32768.0f32) as i16
 }
 
 impl VoiceManager {
@@ -35,8 +23,7 @@ impl VoiceManager {
     pub fn note_on(&mut self, note: Note) {
         for v in self.voices.iter_mut() {
             if *v == VoiceState::Off {
-                let skip = volt_to_skip(note_to_volt(note)) as u32;
-                *v = VoiceState::On(note, skip);
+                *v = VoiceState::On(note, note_to_pitch(note.into()));
                 return;
             }
         }

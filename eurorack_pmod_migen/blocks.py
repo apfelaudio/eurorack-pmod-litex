@@ -128,3 +128,49 @@ class DcBlock(Module):
             i_sample_in = self.sample_in,
             o_sample_out = self.sample_out,
         )
+
+class PitchShift(Module, AutoCSR):
+    def __init__(self, platform, window_size=512, xfade_size=128, w=16):
+
+        self.window_size = window_size
+        self.xfade_size = xfade_size
+        self.w = w
+
+        # Exposed signals
+
+        self.clk_fs = ClockSignal("clk_fs")
+
+        self.sample_in = Signal((w, True))
+        self.pitch = Signal((w, True))
+        self.sample_out = Signal((w, True))
+
+        # Verilog sources
+
+        platform.add_verilog_include_path(SOURCES_ROOT)
+        platform.add_sources(SOURCES_ROOT, "cores/util/transpose.sv")
+        platform.add_sources(SOURCES_ROOT, "cores/util/delayline.sv")
+
+        self.specials += Instance("transpose",
+
+            # Parameters
+            p_W = self.w,
+            p_WINDOW = self.window_size,
+            p_XFADE = self.xfade_size,
+
+
+            # Ports (clk + reset)
+            i_sample_clk = self.clk_fs,
+
+            # Ports (audio in/out)
+            i_sample_in = self.sample_in,
+            i_pitch = self.pitch,
+            o_sample_out = self.sample_out,
+        )
+
+        # Exposed CSRs
+
+        self.csr_pitch = CSRStorage(16)
+
+        self.comb += [
+            self.pitch.eq(self.csr_pitch.storage),
+        ]

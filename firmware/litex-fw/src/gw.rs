@@ -9,6 +9,10 @@ pub trait WavetableOscillator {
     fn set_skip(&self, value: u32);
 }
 
+pub trait PitchShift {
+    fn set_pitch(&self, value: i16);
+}
+
 pub trait KarlsenLpf {
     fn set_cutoff(&self, value: i16);
     fn set_resonance(&self, value: i16);
@@ -54,6 +58,18 @@ macro_rules! wavetable_oscillator {
             fn set_skip(&self, value: u32) {
                 unsafe {
                     self.csr_wavetable_inc.write(|w| w.csr_wavetable_inc().bits(value));
+                }
+            }
+        })+
+    };
+}
+
+macro_rules! pitch_shift {
+    ($($t:ty),+ $(,)?) => {
+        $(impl PitchShift for $t {
+            fn set_pitch(&self, value: i16) {
+                unsafe {
+                    self.csr_pitch.write(|w| w.csr_pitch().bits(value as u16));
                 }
             }
         })+
@@ -113,5 +129,6 @@ macro_rules! pwm_led {
 
 pub(crate) use eurorack_pmod;
 pub(crate) use wavetable_oscillator;
+pub(crate) use pitch_shift;
 pub(crate) use karlsen_lpf;
 pub(crate) use pwm_led;
