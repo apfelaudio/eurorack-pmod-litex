@@ -48,12 +48,22 @@ _io_eurolut_proto1 = [
         Subsignal("bick",    Pins("F20")),
         IOStandard("LVCMOS33")
     ),
+   # ULPI wiring on proto1 is completely borked on schematic, below is correct :)
+   #("ulpi", 0,
+   #    Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+   #    Subsignal("clk",   Pins("W1")),
+   #    Subsignal("dir",   Pins("E16")),
+   #    Subsignal("nxt",   Pins("E17")),
+   #    Subsignal("stp",   Pins("R1")),
+   #    Subsignal("rst",   Pins("U1")),
+   #    IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
+   #),
     ("ulpi", 0,
-        Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+        Subsignal("data",  Pins("E17 R1 E16 F4 E6 D16 D17 E5")),
         Subsignal("clk",   Pins("W1")),
-        Subsignal("dir",   Pins("E16")),
-        Subsignal("nxt",   Pins("E17")),
-        Subsignal("stp",   Pins("R1")),
+        Subsignal("dir",   Pins("F5")),
+        Subsignal("nxt",   Pins("D18")),
+        Subsignal("stp",   Pins("G5")),
         Subsignal("rst",   Pins("U1")),
         IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
     ),
@@ -275,7 +285,7 @@ def main():
 
     add_programn_gpio(soc)
 
-    #add_usb(soc)
+    add_usb(soc)
 
     add_audio_clocks(soc)
 
@@ -304,6 +314,34 @@ def main():
         pmod_aux.p10.eq(clkdiv_test[-6]),
         pmod_aux.p11.eq(clkdiv_test[-7]),
         pmod_aux.p12.eq(clkdiv_test[-8]),
+    ]
+    """
+
+    """
+    clkdiv_test = Signal(8)
+    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
+    ulpi = soc.platform.request("ulpi")
+    soc.comb += [
+        ulpi.data[0].eq(clkdiv_test[0]),
+        ulpi.data[1].eq(clkdiv_test[1]),
+        ulpi.data[2].eq(clkdiv_test[2]),
+        ulpi.data[3].eq(clkdiv_test[3]),
+        ulpi.data[4].eq(clkdiv_test[4]),
+        ulpi.data[5].eq(clkdiv_test[5]),
+        ulpi.data[6].eq(clkdiv_test[6]),
+        ulpi.data[7].eq(clkdiv_test[7]),
+    ]
+    """
+
+    """
+    clkdiv_test = Signal(8)
+    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
+    ulpi = soc.platform.request("ulpi")
+    soc.comb += [
+        ulpi.dir.eq(clkdiv_test[0]),
+        ulpi.nxt.eq(clkdiv_test[1]),
+        ulpi.stp.eq(clkdiv_test[2]),
+        ulpi.rst.eq(clkdiv_test[3]),
     ]
     """
 
