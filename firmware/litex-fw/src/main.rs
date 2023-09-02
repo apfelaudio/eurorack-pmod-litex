@@ -188,9 +188,7 @@ fn main() -> ! {
 
     let mut midi_in = MidiIn::new(uart_midi);
 
-    let mut voice_manager = VoiceManager {
-        voices: [VoiceState::Off; N_VOICES],
-    };
+    let mut voice_manager = VoiceManager::new();
 
     disp.init(
            oled::Config::new(
@@ -225,6 +223,8 @@ fn main() -> ! {
             }
         }
 
+        let time_adsr = cycle_cnt / 60_000u32;
+
         while let Ok(event) = midi_in.read() {
             match event {
                 MidiMessage::NoteOn(_, note, velocity) => {
@@ -233,7 +233,7 @@ fn main() -> ! {
                         u8::from(note),
                         u8::from(velocity)
                     );
-                    voice_manager.note_on(note);
+                    voice_manager.note_on(note, time_adsr);
                 }
                 MidiMessage::NoteOff(_, note, velocity) => {
                     log::info!(
@@ -241,30 +241,21 @@ fn main() -> ! {
                         u8::from(note),
                         u8::from(velocity)
                     );
-                    voice_manager.note_off(note);
+                    voice_manager.note_off(note, time_adsr);
                 }
                 _ => {}
             }
         }
 
-        for n_voice in 0..=3 {
-            if let VoiceState::On(_, pitch) = voice_manager.voices[n_voice] {
-                shifter[n_voice].set_pitch(pitch);
-                lpf[n_voice].set_cutoff(10000i16);
-                lpf[n_voice].set_resonance(10000i16);
-            } else {
-                shifter[n_voice].set_pitch(0);
-                lpf[n_voice].set_cutoff(0i16);
-                lpf[n_voice].set_resonance(0i16);
-            }
-        }
-
+        voice_manager.tick(time_adsr);
 
         let mut v = [0u8; 4];
-        for (i, voice) in v.iter_mut().enumerate() {
-            if let VoiceState::On(note, _) = voice_manager.voices[i] {
-                *voice = u8::from(note);
-            }
+        for n_voice in 0..=3 {
+            let voice = &voice_manager.voices[n_voice];
+            v[n_voice] = voice.note;
+            shifter[n_voice].set_pitch(voice.pitch);
+            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+            lpf[n_voice].set_resonance(10000i16);
         }
 
         Text::with_alignment(
@@ -276,7 +267,7 @@ fn main() -> ! {
         .draw(&mut disp).ok();
 
         if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
-            peripherals.CTRL.reset.write(|w| unsafe { w.soc_rst().bit(true) });
+            peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
         }
 
         /*
@@ -321,7 +312,6 @@ fn main() -> ! {
             pmod0.input(3) as u32,
         ]).ok();
         */
-
 
         draw_titlebox(&mut disp, 190, "MIDI", &[
           "v0",
