@@ -12,7 +12,7 @@ import lxbuildenv
 from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
 from litex.soc.cores.spi import SPIMaster
-from litex.soc.cores.gpio import GPIOOut
+from litex.soc.cores.gpio import GPIOIn, GPIOOut
 from litex.soc.cores.uart import UARTPHY, UART
 from litex.soc.integration.builder import *
 
@@ -69,6 +69,23 @@ _io_eurolut_proto1 = [
     ("uart_midi", 0,
         Subsignal("tx", Pins("B3")),
         Subsignal("rx", Pins("K5")),
+        IOStandard("LVCMOS33")
+    ),
+    ("encoder", 0,
+        Subsignal("a", Pins("K4"), Misc("PULLMODE=NONE")),
+        Subsignal("b", Pins("B2"), Misc("PULLMODE=NONE")),
+        Subsignal("sw_n", Pins("E19"), Misc("PULLMODE=NONE")),
+        IOStandard("LVCMOS33")
+    ),
+    ("pmod_aux1", 0,
+        Subsignal("p5", Pins("N17")),
+        Subsignal("p6", Pins("N18")),
+        Subsignal("p7", Pins("M18")),
+        Subsignal("p8", Pins("L20")),
+        Subsignal("p9", Pins("L18")),
+        Subsignal("p10", Pins("K20")),
+        Subsignal("p11", Pins("J20")),
+        Subsignal("p12", Pins("G20")),
         IOStandard("LVCMOS33")
     ),
     ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
@@ -135,6 +152,57 @@ def add_oled(soc):
     soc.submodules.oled_spi = spi_master
     spi_master.add_clk_divider()
     soc.submodules.oled_ctl = GPIOOut(soc.platform.request("oled_ctl"))
+
+class RotaryEncoder(Module, AutoCSR):
+    def __init__(self, in_i, in_q):
+        # two incoming bits for in-phase and quadrature (A and B) inputs
+        self.in_i = in_i
+        self.in_q = in_q
+        # create storage for inputs
+        self.iq_history = Array(Signal(2) for _ in range(2))
+        # outgoing signals
+        self.step = Signal(1)
+        self.direction = Signal(1)
+        self.csr_state = CSRStatus(8)
+
+        self.comb += [
+            # a step is only taken when either I or Q flip.
+            # if none flip, no step is taken
+            # if both flip, an error happend
+            self.step.eq(self.iq_history[0][0] ^
+                         self.iq_history[0][1] ^
+                         self.iq_history[1][0] ^
+                         self.iq_history[1][1]),
+            # if the former value of I is the current value of Q, we move counter clockwise
+            self.direction.eq(self.iq_history[1][0] ^ self.iq_history[0][1]),
+        ]
+
+        self.sync += [
+            # store the current and former state
+            self.iq_history[1].eq(self.iq_history[0]),
+            self.iq_history[0].eq(Cat(self.in_i, self.in_q)),
+        ]
+
+        self.sync += [
+            If(self.step,
+               If(self.direction == 1,
+                   self.csr_state.status.eq(self.csr_state.status + 1)
+               ).Else(
+                   self.csr_state.status.eq(self.csr_state.status - 1)
+               )
+            )
+        ]
+
+def add_encoder(soc):
+    pads = soc.platform.request("encoder")
+    # Assign the button to a GPIOIn
+    encoder_s = Signal()
+    soc.comb += encoder_s.eq(~pads.sw_n)
+    soc.submodules.encoder_button = GPIOIn(encoder_s)
+    # Create logic for decoding IQ rotation
+    rotary_encoder = RotaryEncoder(pads.a, pads.b)
+    soc.add_module("rotary_encoder", rotary_encoder)
+    pmod_aux = soc.platform.request("pmod_aux1")
 
 def add_programn_gpio(soc):
     programp = Signal()
@@ -206,17 +274,22 @@ def main():
 
     add_uart_midi(soc)
 
-    """
+    add_encoder(soc)
+
     # Useful to double-check connectivity ...
+    """
     clkdiv_test = Signal(8)
     soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
-    oled = soc.platform.request("oled")
+    pmod_aux = soc.platform.request("pmod_aux1")
     soc.comb += [
-        oled.clk.eq(clkdiv_test[-1]),
-        oled.din.eq(clkdiv_test[-2]),
-        oled.dc.eq(clkdiv_test[-3]),
-        oled.res.eq(clkdiv_test[-4]),
-        oled.cs.eq(clkdiv_test[-5]),
+        pmod_aux.p5.eq(clkdiv_test[-1]),
+        pmod_aux.p6.eq(clkdiv_test[-2]),
+        pmod_aux.p7.eq(clkdiv_test[-3]),
+        pmod_aux.p8.eq(clkdiv_test[-4]),
+        pmod_aux.p9.eq(clkdiv_test[-5]),
+        pmod_aux.p10.eq(clkdiv_test[-6]),
+        pmod_aux.p11.eq(clkdiv_test[-7]),
+        pmod_aux.p12.eq(clkdiv_test[-8]),
     ]
     """
 

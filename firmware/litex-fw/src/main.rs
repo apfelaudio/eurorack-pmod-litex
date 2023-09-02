@@ -277,7 +277,10 @@ fn main() -> ! {
         draw_titlebox(&mut disp, 132, "ENCODER", &[
           "tick:",
           "btn:",
-        ], &[0, 0]).ok();
+        ], &[
+          peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2,
+          peripherals.ENCODER_BUTTON.in_.read().bits(),
+        ]).ok();
 
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
