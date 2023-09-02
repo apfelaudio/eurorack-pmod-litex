@@ -69,7 +69,6 @@ where
     let thin_stroke_grey = PrimitiveStyleBuilder::new()
         .stroke_color(Gray4::new(0x3))
         .stroke_width(1)
-        .fill_color(Gray4::BLACK)
         .build();
     let character_style = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
@@ -205,47 +204,8 @@ fn main() -> ! {
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
 
-        let rect_style = PrimitiveStyleBuilder::new()
-            .stroke_color(Gray4::new(0x0))
-            .stroke_width(1)
-            .fill_color(Gray4::BLACK)
-            .build();
-
-
-    disp
-        .bounding_box()
-        .into_styled(rect_style)
-        .draw(&mut disp).ok();
-
-    Text::with_alignment(
-        "<TEST UTIL>",
-        Point::new(disp.bounding_box().center().x, 10),
-        character_style,
-        Alignment::Center,
-    )
-    .draw(&mut disp).ok();
-
-
-    draw_titlebox(&mut disp, 74, "PMOD2", &[
-      "ser:",
-      "jck:",
-      "in0:",
-      "in1:",
-      "in2:",
-      "in3:",
-    ], &[
-        pmod1.eeprom_serial(),
-        pmod1.jack() as u32,
-        pmod1.input(0) as u32,
-        pmod1.input(1) as u32,
-        pmod1.input(2) as u32,
-        pmod1.input(3) as u32,
-    ]).ok();
-
-    draw_titlebox(&mut disp, 132, "ENCODER", &[
-      "tick:",
-      "btn:",
-    ], &[0, 0]).ok();
+    let mut cycle_cnt = riscv::register::cycle::read() as u32;
+    let mut td_us: Option<u32> = None;
 
     loop {
 
@@ -289,6 +249,36 @@ fn main() -> ! {
             }
         }
 
+        Text::with_alignment(
+            "<TEST UTIL>",
+            Point::new(disp.bounding_box().center().x, 10),
+            character_style,
+            Alignment::Center,
+        )
+        .draw(&mut disp).ok();
+
+
+        draw_titlebox(&mut disp, 74, "PMOD2", &[
+          "ser:",
+          "jck:",
+          "in0:",
+          "in1:",
+          "in2:",
+          "in3:",
+        ], &[
+            pmod1.eeprom_serial(),
+            pmod1.jack() as u32,
+            pmod1.input(0) as u32,
+            pmod1.input(1) as u32,
+            pmod1.input(2) as u32,
+            pmod1.input(3) as u32,
+        ]).ok();
+
+        draw_titlebox(&mut disp, 132, "ENCODER", &[
+          "tick:",
+          "btn:",
+        ], &[0, 0]).ok();
+
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",
           "jck:",
@@ -306,7 +296,7 @@ fn main() -> ! {
         ]).ok();
 
 
-        draw_titlebox(&mut disp, 213, "MIDI", &[
+        draw_titlebox(&mut disp, 190, "MIDI", &[
           "v0",
           "v1",
           "v2",
@@ -318,6 +308,25 @@ fn main() -> ! {
           v[3].into()
         ]).ok();
 
-        disp.flush();
+        if let Some(value) = td_us {
+            let mut s: String<32> = String::new();
+            ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
+            ufmt::uwrite!(&mut s, "{}ms", value % 1_000u32).ok();
+            Text::with_alignment(
+                &s,
+                Point::new(5, 250),
+                character_style,
+                Alignment::Left,
+            )
+            .draw(&mut disp).ok();
+        }
+
+        disp.swap_clear();
+
+        let cycle_cnt_now = riscv::register::cycle::read() as u32;
+        let cycle_cnt_last = cycle_cnt;
+        cycle_cnt = cycle_cnt_now;
+
+        td_us = Some((cycle_cnt_now - cycle_cnt_last) / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
     }
 }
