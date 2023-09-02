@@ -20,7 +20,7 @@ TINYUSB_OBJ := $(notdir $(TINYUSB_SRC:.c=.o))
 CFLAGS += 	-I$(TINYUSB_DIR)/src \
 			-DCFG_TUSB_MCU=OPT_MCU_LUNA_EPTRI \
 			-fdata-sections -ffunction-sections -fsingle-precision-constant -fno-strict-aliasing \
-			-DCFG_TUSB_DEBUG=3
+			-DCFG_TUSB_DEBUG=0
 
 vpath %.c $(dir $(TINYUSB_SRC)) $(FW_DIRECTORY) $(FW_DIRECTORY)/luna/eptri
 vpath %.S $(FW_DIRECTORY)
@@ -28,6 +28,7 @@ vpath %.S $(FW_DIRECTORY)
 OBJECTS =  	crt0.o \
 			main.o	\
 			sleep.o \
+			flash.o \
 			dcd_eptri.o \
 			usb_descriptors.o 		   		
 

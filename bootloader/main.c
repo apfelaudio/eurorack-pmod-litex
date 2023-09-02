@@ -30,10 +30,10 @@ typedef struct
 } memory_offest;
 
 memory_offest const alt_offsets[] = {
-	{.address = 0x200000, .length = 0x600000}, /* Main Gateware */
-	{.address = 0x800000, .length = 0x400000}, /* Main Firmawre */
+	{.address = 0x100000, .length = 0x100000}, /* Main Gateware */
+	{.address = 0x1E0000, .length = 0x010000}, /* Main Firmawre */
 	{.address = 0xC00000, .length = 0x400000}, /* Extra */
-	{.address = 0x000000, .length = 0x200000}  /* Bootloader */
+	{.address = 0x000000, .length = 0x100000}  /* Bootloader */
 };
 
 static int complete_timeout;
@@ -217,6 +217,7 @@ int main(int i, char **c)
 			{
 				button_count = board_millis();
 			}
+#endif
 
 			if (bus_reset_received)
 			{
@@ -226,7 +227,6 @@ int main(int i, char **c)
 					break;
 				}
 			}
-#endif
 		}
 	}
 
@@ -234,16 +234,20 @@ int main(int i, char **c)
 	irq_setie(0);
 	usb_device_controller_connect_write(0);
 
+    /*
 	if (spiflash_protection_read() == false)
 	{
 		spiflash_protection_write(true);
 	}
+    */
 
 	msleep(50);
-	
+
+	printf("RESET - pull down PROGRAMN");
+
 	while (1)
 	{
-		reset_out_write(1);
+		programn_out_write(1);
 	}
 
 	return 0;
@@ -326,7 +330,6 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 
 	uint32_t flash_address = alt_offsets[alt].address + block_num * CFG_TUD_DFU_XFER_BUFSIZE;
 
-#if 0
 	/* First block in 64K erase block */
 	if ((flash_address & (FLASH_64K_BLOCK_ERASE_SIZE - 1)) == 0)
 	{
@@ -337,11 +340,11 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 		/* While FLASH erase is in progress update LEDs */
 		while (spiflash_read_status_register() & 1)
 		{
-			led_blinking_task();
+			//led_blinking_task();
 		};
 	}
 
-	//printf("tud_dfu_download_cb(), alt=%u, block=%u, flash_address=%08x\n", alt, block_num, flash_address);
+	printf("tud_dfu_download_cb(), alt=%u, block=%u, flash_address=%08x\n", alt, block_num, flash_address);
 
 	for (int i = 0; i < CFG_TUD_DFU_XFER_BUFSIZE / 256; i++)
 	{
@@ -357,7 +360,6 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 			//led_blinking_task();
 		};
 	}
-#endif
 
 	// flashing op for download complete without error
 	tud_dfu_finish_flashing(DFU_STATUS_OK);
