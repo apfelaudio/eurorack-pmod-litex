@@ -41,6 +41,7 @@ karlsen_lpf!(pac::KARLSEN_LPF0);
 karlsen_lpf!(pac::KARLSEN_LPF1);
 karlsen_lpf!(pac::KARLSEN_LPF2);
 karlsen_lpf!(pac::KARLSEN_LPF3);
+pwm_led!(pac::PCA9635);
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
 
@@ -147,14 +148,17 @@ fn main() -> ! {
         &peripherals.KARLSEN_LPF3,
     ];
 
+    let pca9635 = peripherals.PCA9635;
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
+    pca9635.reset_line(true);
     pmod0.reset_line(true);
     pmod1.reset_line(true);
     timer.delay_ms(10u32);
+    pca9635.reset_line(false);
     pmod0.reset_line(false);
     pmod1.reset_line(false);
 
@@ -206,8 +210,20 @@ fn main() -> ! {
 
     let mut cycle_cnt = riscv::register::cycle::read() as u32;
     let mut td_us: Option<u32> = None;
+    let mut v = 0u8;
 
     loop {
+
+        v += 3;
+
+        for i in 0..=15 {
+            let this_v = v+i*16;
+            if this_v < 128 {
+                pca9635.led(i.into(), this_v);
+            } else {
+                pca9635.led(i.into(), 128-this_v);
+            }
+        }
 
         while let Ok(event) = midi_in.read() {
             match event {
@@ -281,6 +297,10 @@ fn main() -> ! {
           peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2,
           peripherals.ENCODER_BUTTON.in_.read().bits(),
         ]).ok();
+
+        if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
+            peripherals.CTRL.reset.write(|w| unsafe { w.soc_rst().bit(true) });
+        }
 
         draw_titlebox(&mut disp, 16, "PMOD1", &[
           "ser:",

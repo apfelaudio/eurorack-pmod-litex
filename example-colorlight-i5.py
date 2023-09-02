@@ -23,6 +23,8 @@ from rtl.eptri import LunaEpTriWrapper
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
 
+from rtl.pca9635_master import *
+
 _io_eurolut_proto1 = [
     ("eurorack_pmod_p3b", 0,
         Subsignal("mclk",    Pins("A3")),
@@ -75,6 +77,12 @@ _io_eurolut_proto1 = [
         Subsignal("a", Pins("K4"), Misc("PULLMODE=NONE")),
         Subsignal("b", Pins("B2"), Misc("PULLMODE=NONE")),
         Subsignal("sw_n", Pins("E19"), Misc("PULLMODE=NONE")),
+        IOStandard("LVCMOS33")
+    ),
+    ("pca9635", 0,
+        Subsignal("i2c_sda", Pins("F1")),
+        Subsignal("i2c_scl", Pins("F2")),
+        Subsignal("oan", Pins("G3"), Misc("PULLMODE=DOWN")),
         IOStandard("LVCMOS33")
     ),
     ("pmod_aux1", 0,
@@ -152,6 +160,10 @@ def add_oled(soc):
     soc.submodules.oled_spi = spi_master
     spi_master.add_clk_divider()
     soc.submodules.oled_ctl = GPIOOut(soc.platform.request("oled_ctl"))
+
+def add_pca9635_master(soc):
+    pca9635_master = PCA9635Master(soc.platform, soc.platform.request("pca9635"))
+    soc.add_module("pca9635", pca9635_master)
 
 class RotaryEncoder(Module, AutoCSR):
     def __init__(self, in_i, in_q):
@@ -275,6 +287,8 @@ def main():
     add_uart_midi(soc)
 
     add_encoder(soc)
+
+    add_pca9635_master(soc)
 
     # Useful to double-check connectivity ...
     """
