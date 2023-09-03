@@ -10,5 +10,5 @@ script_path = os.path.dirname(os.path.realpath(
 sys.path.insert(0, script_path)
 import lxbuildenv
 
-from litex.soc.software.mkmscimg import main
+from litex.soc.software.crcfbigen import main
 main()

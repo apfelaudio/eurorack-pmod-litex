@@ -26,7 +26,6 @@
 #include "tusb.h"
 #include "class/dfu/dfu_device.h"
 #include <generated/soc.h>
-#include "flash.h"
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -123,13 +122,13 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 },                // 0: is supported language is English (0x0409)
-  "Good Stuff Department",                      // 1: Manufacturer
-  "butterstick (dfu XXX )", // 2: Product
+  "apfelaudio.com",                      // 1: Manufacturer
+  "eurolut proto1 (dfu XXX )", // 2: Product
   "",                                           // 3: Serial, derived from FLASH UUID
-  "flash @0x200000 (gateware)",                 // 4: DFU alt0 name
-  "flash @0x400000 (firmware)",                 // 5: DFU alt1 name
-  "flash @0x800000 (extra)",                    // 6: DFU alt2 name
-  "flash @0x000000 (bootloader)",               // 7: DFU alt3 name
+  "flash @0x100000 (gateware)",                 // 4: DFU alt0 name
+  "flash @0x1E0000 (firmware)",                 // 5: DFU alt1 name
+  "UNUSED @0x800000",                    // 6: DFU alt2 name
+  "UNUSED @0x800000",               // 7: DFU alt3 name
 };
 
 //--------------------------------------------------------------------+

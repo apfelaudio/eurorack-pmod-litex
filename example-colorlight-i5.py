@@ -273,6 +273,8 @@ def main():
     parser.add_target_argument("--board",            default="i5",             help="Board type (i5).")
     parser.add_target_argument("--revision",         default="7.0",            help="Board revision (7.0).")
     parser.add_target_argument("--sys-clk-freq",     default=60e6, type=float, help="System clock frequency.")
+    # This argument is 0x200000 + (address in flash of firmware image to boot from LiteX BIOS)
+    parser.add_target_argument("--flash-boot",       default=0x3E0000, type=lambda x: int(x,0), help="Flash boot address.")
     viopts = parser.target_group.add_mutually_exclusive_group()
     args = parser.parse_args()
 
@@ -300,6 +302,8 @@ def main():
     add_encoder(soc)
 
     add_pca9635_master(soc)
+
+    soc.add_constant("FLASH_BOOT_ADDRESS", args.flash_boot)
 
     # Useful to double-check connectivity ...
     """

@@ -11,14 +11,17 @@
 #include <generated/mem.h>
 #include <generated/git.h>
 #include <generated/luna_usb.h>
+#include <liblitespi/spiflash.h>
 
 #include <irq.h>
 #include <uart.h>
 
 #include <sleep.h>
-#include <flash.h>
 
 #include "tusb.h"
+
+
+#define SPI_FLASH_PAGE_SZ (64*1024)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -32,14 +35,12 @@ typedef struct
 memory_offest const alt_offsets[] = {
 	{.address = 0x100000, .length = 0x100000}, /* Main Gateware */
 	{.address = 0x1E0000, .length = 0x010000}, /* Main Firmawre */
-	{.address = 0xC00000, .length = 0x400000}, /* Extra */
-	{.address = 0x000000, .length = 0x100000}  /* Bootloader */
+	{.address = 0x800000, .length = 0x000000}, /* Extra */
+	{.address = 0x800000, .length = 0x000000}  /* Bootloader */
 };
 
-static int complete_timeout;
 static bool flash_command_seen = false;
 static bool bus_reset_received = false;
-static bool bl_upgrade = false;
 
 /* Blink pattern
  * - 1000 ms : device should reboot
@@ -128,96 +129,24 @@ int main(int i, char **c)
 	irq_setie(1);
 	uart_init();
 
-    uart_rxtx_write('A');
-    uart_rxtx_write('\n');
+    printf("Eurolut DFU bootloader\n");
 
 	usb_device_controller_reset_write(1);
 	msleep(100);
 	usb_device_controller_reset_write(0);
 	msleep(100);
 
-	/* Handle soft-reset to unlock bootloader partition */
-    #if 0
-	if (ctrl_scratch_read() == 0)
-	{
-		enable_bootloader_alt();
-		bl_upgrade = true;
-		spiflash_protection_write(false);
-	}
-	else if (spiflash_protection_read() == false)
-	{
-		spiflash_protection_write(true);
-	}
-
-	uint8_t last_button = button_in_read();
-	uint32_t button_count = board_millis();
-
-	/* Check for magic bytes in the Security page3 */
-	const uint32_t BL_MAGIC0 = 0x021b3bcd;
-	const uint32_t BL_MAGIC1 = 0xc4f86d8a;
-
-	uint8_t buf[256];
-	bool stay_in_bootloader = false;
-	spiflash_read_security_register(3, buf);
-
-	if ((buf[0] == ((BL_MAGIC0 >> 0) & 0xFF)) &&
-		(buf[1] == ((BL_MAGIC0 >> 8) & 0xFF)) &&
-		(buf[2] == ((BL_MAGIC0 >> 16) & 0xFF)) &&
-		(buf[3] == ((BL_MAGIC0 >> 24) & 0xFF)))
-	{
-		/* Found BL_MAGIC0, stay in bootolader, but clear this flag */
-		stay_in_bootloader = true;
-		spiflash_write_enable();
-		spiflash_erase_security_register(3);
-	}
-	else if ((buf[0] == ((BL_MAGIC1 >> 0) & 0xFF)) &&
-			 (buf[1] == ((BL_MAGIC1 >> 8) & 0xFF)) &&
-			 (buf[2] == ((BL_MAGIC1 >> 16) & 0xFF)) &&
-			 (buf[3] == ((BL_MAGIC1 >> 24) & 0xFF)))
-	{
-		/* Found BL_MAGIC1, stay in bootolader, but don't clear this flag */
-		stay_in_bootloader = true;
-	}
-
-
-
-	if (((button_in_read() & 1) == 0) || stay_in_bootloader)
-	{
-    #endif
-    if (true)
+    if (encoder_button_in_read() & 0x1)
+    //if(true)
     {
-        uart_rxtx_write('^');
+        printf("Entering USB DFU mode until reset commanded...\n");
 
 		timer_init();
 		tusb_init();
 
-        uart_rxtx_write('d');
-
 		while (1)
 		{
 			tud_task(); // tinyusb device task
-
-#if 0
-			if ((button_in_read() == 0))
-			{
-
-				if ((board_millis() - button_count) > 5000)
-				{
-
-					ctrl_scratch_write(0);
-
-					irq_setie(0);
-					usb_device_controller_connect_write(0);
-					msleep(20);
-
-					ctrl_reset_write(1);
-				}
-			}
-			else
-			{
-				button_count = board_millis();
-			}
-#endif
 
 			if (bus_reset_received)
 			{
@@ -228,22 +157,17 @@ int main(int i, char **c)
 				}
 			}
 		}
-	}
+	} else {
+        printf("Bootloader not requested. Skipping.\n");
+    }
+
+	printf("Pull down PROGRAMN, reboot to user bitstream\n");
 
 	/* Reboot to our user bitstream */
 	irq_setie(0);
 	usb_device_controller_connect_write(0);
 
-    /*
-	if (spiflash_protection_read() == false)
-	{
-		spiflash_protection_write(true);
-	}
-    */
-
 	msleep(50);
-
-	printf("RESET - pull down PROGRAMN");
 
 	while (1)
 	{
@@ -330,36 +254,12 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const *data, u
 
 	uint32_t flash_address = alt_offsets[alt].address + block_num * CFG_TUD_DFU_XFER_BUFSIZE;
 
-	/* First block in 64K erase block */
-	if ((flash_address & (FLASH_64K_BLOCK_ERASE_SIZE - 1)) == 0)
+	if ((flash_address & (SPI_FLASH_PAGE_SZ - 1)) == 0)
 	{
+        spiflash_erase_range(flash_address, SPI_FLASH_PAGE_SZ);
+    }
 
-		spiflash_write_enable();
-		spiflash_sector_erase(flash_address);
-
-		/* While FLASH erase is in progress update LEDs */
-		while (spiflash_read_status_register() & 1)
-		{
-			//led_blinking_task();
-		};
-	}
-
-	printf("tud_dfu_download_cb(), alt=%u, block=%u, flash_address=%08x\n", alt, block_num, flash_address);
-
-	for (int i = 0; i < CFG_TUD_DFU_XFER_BUFSIZE / 256; i++)
-	{
-
-		spiflash_write_enable();
-		spiflash_page_program(flash_address, data, 256);
-		flash_address += 256;
-		data += 256;
-
-		/* While FLASH erase is in progress update LEDs */
-		while (spiflash_read_status_register() & 1)
-		{
-			//led_blinking_task();
-		};
-	}
+    spiflash_write_stream(flash_address, data, CFG_TUD_DFU_XFER_BUFSIZE);
 
 	// flashing op for download complete without error
 	tud_dfu_finish_flashing(DFU_STATUS_OK);

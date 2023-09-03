@@ -28,9 +28,8 @@ vpath %.S $(FW_DIRECTORY)
 OBJECTS =  	crt0.o \
 			main.o	\
 			sleep.o \
-			flash.o \
 			dcd_eptri.o \
-			usb_descriptors.o 		   		
+			usb_descriptors.o
 
 OBJECTS += $(TINYUSB_OBJ)
 
@@ -44,12 +43,12 @@ oc-fw.elf: $(OBJECTS)
 		$(OBJECTS) \
 		-L$(BUILD_DIR)/libc \
 		-lc \
+		-L$(BUILD_DIR)/liblitespi \
+		-llitespi \
 		-L$(BUILD_DIR)/libbase \
 		-lbase \
-		-L$(BUILD_DIR)/liblitespi \
-		-lcompiler_rt \
 		-L$(BUILD_DIR)/libcompiler_rt \
-		-llitespi \
+		-lcompiler_rt \
 		-Wl,--whole-archive \
 		-Wl,--gc-sections
 
