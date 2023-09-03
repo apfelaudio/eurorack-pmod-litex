@@ -1,5 +1,5 @@
 use micromath::F32Ext;
-use midi_types::Note;
+use midi_types::*;
 use ufmt::derive::uDebug;
 
 pub const N_VOICES: usize = 4;
@@ -13,22 +13,38 @@ pub enum VoiceState {
     Release(u32),
 }
 
+pub struct AdsrParams {
+    attack_ms: u32,
+    decay_ms: u32,
+    release_ms: u32,
+    attack_amplitude: f32,
+    sustain_amplitude: f32,
+}
+
 pub struct Voice {
     pub note: u8,
     pub start_time_ms: u32,
     pub state: VoiceState,
     pub pitch: i16,
     pub amplitude: f32,
+    pub adsr: AdsrParams,
 }
 
 impl Voice {
-    fn new(note: Note, start_time_ms: u32, state: VoiceState) -> Voice {
+    fn new(note: u8, start_time_ms: u32, state: VoiceState, velocity: u8) -> Voice {
         Voice {
-            note: note.into(),
+            note,
             start_time_ms,
             state,
             pitch: note_to_pitch(note.into()),
             amplitude: 0.0f32,
+            adsr: AdsrParams {
+                attack_ms: 100u32,
+                decay_ms: 100u32,
+                release_ms: 300u32,
+                attack_amplitude: 1.0f32 * (velocity as f32 / 128.0f32),
+                sustain_amplitude: 0.8f32 * (velocity as f32 / 128.0f32),
+            }
         }
     }
 }
@@ -41,10 +57,10 @@ impl VoiceManager {
     pub fn new() -> VoiceManager {
         VoiceManager {
             voices: [
-                Voice::new(0.into(), 0, VoiceState::Idle),
-                Voice::new(0.into(), 0, VoiceState::Idle),
-                Voice::new(0.into(), 0, VoiceState::Idle),
-                Voice::new(0.into(), 0, VoiceState::Idle),
+                Voice::new(0.into(), 0, VoiceState::Idle, 0),
+                Voice::new(0.into(), 0, VoiceState::Idle, 0),
+                Voice::new(0.into(), 0, VoiceState::Idle, 0),
+                Voice::new(0.into(), 0, VoiceState::Idle, 0),
             ]
         }
     }
@@ -56,29 +72,51 @@ fn note_to_pitch(note: u8) -> i16 {
 }
 
 
-const ATTACK_MS: u32 = 100u32;
-const DECAY_MS: u32 = 200u32;
-const RELEASE_MS: u32 = 500u32;
-
 impl VoiceManager {
-    pub fn note_on(&mut self, note: Note, time_ms: u32) {
+    pub fn event(&mut self, message: MidiMessage, time_ms: u32) {
+        match message {
+            MidiMessage::NoteOn(_, note, velocity) => {
+                self.note_on(u8::from(note), u8::from(velocity), time_ms);
+            }
+            MidiMessage::NoteOff(_, note, _velocity) => {
+                self.note_off(u8::from(note), time_ms);
+            }
+            _ => {}
+        }
+    }
+
+    fn note_on(&mut self, note: u8, velocity: u8, time_ms: u32) {
+        let mut oldest_note_releasing_ts = u32::MAX;
         for v in self.voices.iter_mut() {
-            if v.state == VoiceState::Idle {
-                *v = Voice::new(note, time_ms, VoiceState::Attack);
+            if let VoiceState::Release(ts) = v.state {
+                if ts < oldest_note_releasing_ts {
+                    oldest_note_releasing_ts = ts;
+                }
+            }
+            if let VoiceState::Idle = v.state {
+                *v = Voice::new(note, time_ms, VoiceState::Attack, velocity);
                 return;
             }
-            if u8::from(note) == v.note && v.state != VoiceState::Idle {
-                // Retrigger if same note already in a voice.
-                v.start_time_ms = time_ms;
-                v.state = VoiceState::Attack;
+            // Retrigger if same note already in a voice.
+            if note == v.note && v.state != VoiceState::Idle {
+                *v = Voice::new(note, time_ms, VoiceState::Attack, velocity);
                 return;
+            }
+        }
+
+        for v in self.voices.iter_mut() {
+            if let VoiceState::Release(ts) = v.state {
+                if ts == oldest_note_releasing_ts {
+                    *v = Voice::new(note, time_ms, VoiceState::Attack, velocity);
+                    return;
+                }
             }
         }
     }
 
-    pub fn note_off(&mut self, note: Note, time_ms: u32) {
+    fn note_off(&mut self, note: u8, time_ms: u32) {
         for v in self.voices.iter_mut() {
-            if u8::from(note) == v.note && v.state != VoiceState::Idle {
+            if note == v.note && v.state != VoiceState::Idle {
                 v.state = VoiceState::Release(time_ms);
             }
         }
@@ -88,28 +126,28 @@ impl VoiceManager {
         for v in self.voices.iter_mut() {
             v.state = match v.state {
                 VoiceState::Attack => {
-                    v.amplitude = (time_ms - v.start_time_ms) as f32 / ATTACK_MS as f32;
-                    if time_ms > ATTACK_MS + v.start_time_ms {
+                    v.amplitude = v.adsr.attack_amplitude * (time_ms - v.start_time_ms) as f32 / v.adsr.attack_ms as f32;
+                    if time_ms > v.adsr.attack_ms + v.start_time_ms {
                         VoiceState::Decay
                     } else {
                         VoiceState::Attack
                     }
                 },
                 VoiceState::Decay => {
-                    v.amplitude = 1.0f32 - 0.2f32 * (time_ms - ATTACK_MS - v.start_time_ms) as f32 / DECAY_MS as f32;
-                    if time_ms > ATTACK_MS + DECAY_MS + v.start_time_ms {
+                    v.amplitude = v.adsr.attack_amplitude - (v.adsr.attack_amplitude - v.adsr.sustain_amplitude) * (time_ms - v.adsr.attack_ms - v.start_time_ms) as f32 / v.adsr.decay_ms as f32;
+                    if time_ms > v.adsr.attack_ms + v.adsr.decay_ms + v.start_time_ms {
                         VoiceState::Sustain
                     } else {
                         VoiceState::Decay
                     }
                 },
                 VoiceState::Sustain => {
-                    v.amplitude = 0.8f32;
+                    v.amplitude = v.adsr.sustain_amplitude;
                     VoiceState::Sustain
                 }
                 VoiceState::Release(release_time_ms) => {
-                    v.amplitude = 0.8f32 * (1.0f32 - (time_ms - release_time_ms) as f32 / RELEASE_MS as f32);
-                    if time_ms > release_time_ms + RELEASE_MS {
+                    v.amplitude = v.adsr.sustain_amplitude * (1.0f32 - (time_ms - release_time_ms) as f32 / v.adsr.release_ms as f32);
+                    if time_ms > release_time_ms + v.adsr.release_ms {
                         VoiceState::Idle
                     } else {
                         VoiceState::Release(release_time_ms)

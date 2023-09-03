@@ -226,25 +226,7 @@ fn main() -> ! {
         let time_adsr = cycle_cnt / 60_000u32;
 
         while let Ok(event) = midi_in.read() {
-            match event {
-                MidiMessage::NoteOn(_, note, velocity) => {
-                    log::info!(
-                        "note on: note={} vel={}",
-                        u8::from(note),
-                        u8::from(velocity)
-                    );
-                    voice_manager.note_on(note, time_adsr);
-                }
-                MidiMessage::NoteOff(_, note, velocity) => {
-                    log::info!(
-                        "note off: note={} vel={}",
-                        u8::from(note),
-                        u8::from(velocity)
-                    );
-                    voice_manager.note_off(note, time_adsr);
-                }
-                _ => {}
-            }
+            voice_manager.event(event, time_adsr);
         }
 
         voice_manager.tick(time_adsr);
