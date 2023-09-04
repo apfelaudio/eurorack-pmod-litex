@@ -106,7 +106,10 @@ _io_eurolut_proto1 = [
         Subsignal("p12", Pins("G20")),
         IOStandard("LVCMOS33")
     ),
-    ("programn", 0, Pins("L4"), IOStandard("LVCMOS33"), Misc("OPENDRAIN=ON")),
+    # This is pin 27 of the B50612D (top ethernet PHY), which is pretty easy to
+    # bodge over to the side of R106 closest to the ECP5 so we get multiboot.
+    # I removed R86 so the PHY is disconnected.
+    ("programn", 0, Pins("P1"), IOStandard("LVCMOS33")),
 ]
 
 def add_audio_clocks(soc, sample_rate=46875):
@@ -281,6 +284,7 @@ def main():
     soc = BaseSoC(board=args.board, revision=args.revision,
         toolchain              = args.toolchain,
         sys_clk_freq           = args.sys_clk_freq,
+        with_led_chaser        = False,
         **parser.soc_argdict
     )
 
