@@ -1,21 +1,19 @@
+#![allow(unused_imports)]
+
 #![no_std]
 #![no_main]
-#![allow(dead_code)]
 
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use litex_pac as pac;
-use riscv;
 use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use embedded_midi::MidiIn;
-use midi_types::*;
-use ufmt;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
-    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Triangle, Line},
+    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Line},
     mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
     prelude::*,
     text::{Alignment, Text},
@@ -71,7 +69,6 @@ where
         .stroke_color(Gray4::new(0x3))
         .stroke_width(1)
         .build();
-    let character_style = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
     let title_y = 10u32;
     let box_h = 20u32;
@@ -155,79 +152,9 @@ where
     )
     .draw(d)?;
 
-    /*
-    Triangle::new(Point::new(35, sy as i32 + 15),
-                  Point::new(35, sy as i32 + 15 + 10),
-                  Point::new(50, sy as i32 + 20))
-        .into_styled(stroke_gain)
-        .draw(d)?;
-        */
 
     Ok(())
 }
-
-fn draw_titlebox<D>(d: &mut D, sy: u32, title: &str, fields: &[&str], values: &[u32]) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = Gray4>,
-{
-
-    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
-    let thin_stroke_grey = PrimitiveStyleBuilder::new()
-        .stroke_color(Gray4::new(0x3))
-        .stroke_width(1)
-        .build();
-    let character_style = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
-    let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-    let dy = 7u32;
-    let title_y = 10u32;
-    let box_y = title_y + 3u32 + (fields.len() as u32) * dy;
-
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, box_y))
-        .into_styled(thin_stroke_grey)
-        .draw(d)?;
-
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, title_y))
-        .into_styled(thin_stroke)
-        .draw(d)?;
-
-    Text::with_alignment(
-        title,
-        Point::new(d.bounding_box().center().x, (sy as i32)+7),
-        character_style_h,
-        Alignment::Center,
-    )
-    .draw(d)?;
-
-    let mut sy = sy + title_y + 6;
-
-    for (f, v) in fields.iter().zip(values) {
-
-        let mut s: String<32> = String::new();
-        ufmt::uwrite!(&mut s, "{:#06x}", *v).ok();
-
-        Text::with_alignment(
-            f,
-            Point::new(5, sy as i32),
-            character_style,
-            Alignment::Left,
-        )
-        .draw(d)?;
-
-        if *v != 0 {
-            Text::with_alignment(
-                &s,
-                Point::new(60, sy as i32),
-                character_style,
-                Alignment::Right,
-            )
-            .draw(d)?;
-        }
-        sy += dy;
-    }
-
-    Ok(())
-}
-
 
 #[entry]
 fn main() -> ! {

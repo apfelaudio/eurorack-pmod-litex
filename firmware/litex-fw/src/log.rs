@@ -1,9 +1,10 @@
+#![allow(clippy::empty_loop)]
+
 use core::panic::PanicInfo;
 use heapless::String;
 use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
-use ufmt;
 
 litex_hal::uart! {
     Uart: pac::UART,
@@ -14,6 +15,18 @@ static mut UART_WRITER: Option<Uart> = None;
 #[panic_handler]
 fn panic(_: &PanicInfo) -> ! {
     info!("PANIC");
+    loop {}
+}
+
+#[export_name = "ExceptionHandler"]
+fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
+    _logger_write(b"exception_handler\n");
+    loop {}
+}
+
+#[export_name = "DefaultHandler"]
+fn default_handler() {
+    _logger_write(b"default_handler\n");
     loop {}
 }
 

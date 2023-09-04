@@ -36,7 +36,7 @@ impl Voice {
             note,
             start_time_ms,
             state,
-            pitch: note_to_pitch(note.into()),
+            pitch: note_to_pitch(note),
             amplitude: 0.0f32,
             adsr: AdsrParams {
                 attack_ms: 100u32,
@@ -57,10 +57,10 @@ impl VoiceManager {
     pub fn new() -> VoiceManager {
         VoiceManager {
             voices: [
-                Voice::new(0.into(), 0, VoiceState::Idle, 0),
-                Voice::new(0.into(), 0, VoiceState::Idle, 0),
-                Voice::new(0.into(), 0, VoiceState::Idle, 0),
-                Voice::new(0.into(), 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
             ]
         }
     }

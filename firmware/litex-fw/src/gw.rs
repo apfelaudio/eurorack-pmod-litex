@@ -1,3 +1,5 @@
+#![allow(unused_macros)]
+
 pub trait EurorackPmod {
     fn reset_line(&self, set_high: bool);
     fn eeprom_serial(&self) -> u32;
