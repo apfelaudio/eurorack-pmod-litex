@@ -238,14 +238,14 @@ fn main() -> ! {
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
 
-    let mut cycle_cnt = riscv::register::cycle::read() as u32;
+    let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
     let mut v = 0u8;
 
     loop {
 
         Text::with_alignment(
-            "POLYPHONIZER\nDEMO\n-apfelaudio-",
+            "POLYPHONIZER\nDEMO",
             Point::new(disp.bounding_box().center().x, 10),
             character_style,
             Alignment::Center,
@@ -263,7 +263,7 @@ fn main() -> ! {
             }
         }
 
-        let time_adsr = cycle_cnt / 60_000u32;
+        let time_adsr = (cycle_cnt / 60_000u64) as u32;
 
         while let Ok(event) = midi_in.read() {
             voice_manager.event(event, time_adsr);
@@ -278,7 +278,7 @@ fn main() -> ! {
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
             lpf[n_voice].set_resonance(10000i16);
-            draw_voice(&mut disp, (35+35*n_voice) as u32, n_voice as u32, voice).ok();
+            draw_voice(&mut disp, (35+45*n_voice) as u32, n_voice as u32, voice).ok();
         }
 
 
@@ -286,68 +286,14 @@ fn main() -> ! {
             peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
         }
 
-        /*
-        draw_titlebox(&mut disp, 74, "PMOD2", &[
-          "ser:",
-          "jck:",
-          "in0:",
-          "in1:",
-          "in2:",
-          "in3:",
-        ], &[
-            pmod1.eeprom_serial(),
-            pmod1.jack() as u32,
-            pmod1.input(0) as u32,
-            pmod1.input(1) as u32,
-            pmod1.input(2) as u32,
-            pmod1.input(3) as u32,
-        ]).ok();
-
-        draw_titlebox(&mut disp, 132, "ENCODER", &[
-          "tick:",
-          "btn:",
-        ], &[
-          peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2,
-          peripherals.ENCODER_BUTTON.in_.read().bits(),
-        ]).ok();
-
-
-        draw_titlebox(&mut disp, 16, "PMOD1", &[
-          "ser:",
-          "jck:",
-          "in0:",
-          "in1:",
-          "in2:",
-          "in3:",
-        ], &[
-            pmod0.eeprom_serial(),
-            pmod0.jack() as u32,
-            pmod0.input(0) as u32,
-            pmod0.input(1) as u32,
-            pmod0.input(2) as u32,
-            pmod0.input(3) as u32,
-        ]).ok();
-
-        draw_titlebox(&mut disp, 190, "MIDI", &[
-          "v0",
-          "v1",
-          "v2",
-          "v3",
-        ], &[
-          v[0].into(),
-          v[1].into(),
-          v[2].into(),
-          v[3].into()
-        ]).ok();
-        */
-
         if let Some(value) = td_us {
-            let mut s: String<32> = String::new();
+            let mut s: String<64> = String::new();
             ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
-            ufmt::uwrite!(&mut s, "{}ms", value % 1_000u32).ok();
+            ufmt::uwrite!(&mut s, "{}ms\n", value % 1_000u32).ok();
+            ufmt::uwrite!(&mut s, "-apfelaudio-\n").ok();
             Text::with_alignment(
                 &s,
-                Point::new(5, 250),
+                Point::new(5, 245),
                 character_style,
                 Alignment::Left,
             )
@@ -356,10 +302,10 @@ fn main() -> ! {
 
         disp.swap_clear();
 
-        let cycle_cnt_now = riscv::register::cycle::read() as u32;
+        let cycle_cnt_now = timer.uptime();
         let cycle_cnt_last = cycle_cnt;
         cycle_cnt = cycle_cnt_now;
-
-        td_us = Some((cycle_cnt_now - cycle_cnt_last) / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+        let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
+        td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
     }
 }

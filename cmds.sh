@@ -15,7 +15,7 @@ openFPGALoader -b colorlight-i5 -o 0x0E0000 -f oc-fw.fbi
 # USER BITSTREAM
 
 # Build the bitstream (provide --flash-boot = 0x200000 (memmapped spi flash) + 0x1E0000 (firmware offset in flash))
-python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x3E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --build
+python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x3E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build
 # Hold BUTTON while turning on, then flash over DFU device ALT 0
 sudo dfu-util --alt 0 --download build/colorlight_i5/gateware/colorlight_i5.bit
 
