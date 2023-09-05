@@ -292,7 +292,7 @@ def main():
 
     add_programn_gpio(soc)
 
-    add_usb(soc)
+    #add_usb(soc)
 
     add_audio_clocks(soc)
 

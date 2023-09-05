@@ -40,10 +40,10 @@ impl Voice {
             amplitude: 0.0f32,
             adsr: AdsrParams {
                 attack_ms: 100u32,
-                decay_ms: 100u32,
+                decay_ms: 400u32,
                 release_ms: 300u32,
                 attack_amplitude: 1.0f32 * (velocity as f32 / 128.0f32),
-                sustain_amplitude: 0.8f32 * (velocity as f32 / 128.0f32),
+                sustain_amplitude: 0.5f32 * (velocity as f32 / 128.0f32),
             }
         }
     }
@@ -107,7 +107,10 @@ impl VoiceManager {
         for v in self.voices.iter_mut() {
             if let VoiceState::Release(ts) = v.state {
                 if ts == oldest_note_releasing_ts {
-                    *v = Voice::new(note, time_ms, VoiceState::Attack, velocity);
+                    let mut new_voice = Voice::new(note, time_ms, VoiceState::Attack, velocity);
+                    new_voice.amplitude = v.amplitude;
+                    *v = new_voice;
+
                     return;
                 }
             }
@@ -158,6 +161,12 @@ impl VoiceManager {
                     v.amplitude = 0.0f32;
                     VoiceState::Idle
                 },
+            };
+            if v.amplitude > 1.0f32 {
+                v.amplitude = 1.0f32;
+            }
+            if v.amplitude < 0.0f32 {
+                v.amplitude = 0.0f32;
             }
         }
     }

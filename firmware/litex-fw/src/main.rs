@@ -238,7 +238,7 @@ fn main() -> ! {
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
 
-    let mut cycle_cnt = riscv::register::cycle::read() as u32;
+    let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
     let mut v = 0u8;
 
@@ -263,7 +263,7 @@ fn main() -> ! {
             }
         }
 
-        let time_adsr = cycle_cnt / 60_000u32;
+        let time_adsr = (cycle_cnt / 60_000u64) as u32;
 
         while let Ok(event) = midi_in.read() {
             voice_manager.event(event, time_adsr);
@@ -277,7 +277,7 @@ fn main() -> ! {
             v[n_voice] = voice.note;
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-            lpf[n_voice].set_resonance(10000i16);
+            lpf[n_voice].set_resonance(0i16);
             draw_voice(&mut disp, (35+35*n_voice) as u32, n_voice as u32, voice).ok();
         }
 
@@ -356,10 +356,10 @@ fn main() -> ! {
 
         disp.swap_clear();
 
-        let cycle_cnt_now = riscv::register::cycle::read() as u32;
+        let cycle_cnt_now = timer.uptime();
         let cycle_cnt_last = cycle_cnt;
         cycle_cnt = cycle_cnt_now;
-
-        td_us = Some((cycle_cnt_now - cycle_cnt_last) / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+        let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
+        td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
     }
 }
