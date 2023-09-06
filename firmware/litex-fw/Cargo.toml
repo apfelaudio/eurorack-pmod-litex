@@ -18,3 +18,4 @@ paste = "1.0.14"
 embedded-graphics = "0.8.1"
 heapless = { version = "0.7.16", features = ["ufmt-impl"] }
 ufmt = "0.2.0"
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }

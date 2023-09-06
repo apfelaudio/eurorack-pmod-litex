@@ -24,6 +24,7 @@ use ssd1322 as oled;
 mod log;
 mod voice;
 mod gw;
+mod opt;
 
 use voice::*;
 use gw::*;
@@ -180,6 +181,14 @@ fn main() -> ! {
         &peripherals.KARLSEN_LPF3,
     ];
 
+    let mut opts = opt::Options::new();
+
+    let opts_view: [&dyn opt::OptionTrait; 3] = [
+        &opts.delay_len,
+        &opts.attack_ms,
+        &opts.decay_ms,
+    ];
+
     let pca9635 = peripherals.PCA9635;
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
@@ -269,7 +278,7 @@ fn main() -> ! {
             voice_manager.event(event, time_adsr);
         }
 
-        voice_manager.tick(time_adsr);
+        voice_manager.tick(time_adsr, &opts);
 
         let mut v = [0u8; 4];
         for n_voice in 0..=3 {
@@ -277,13 +286,28 @@ fn main() -> ! {
             v[n_voice] = voice.note;
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-            lpf[n_voice].set_resonance(10000i16);
-            draw_voice(&mut disp, (35+45*n_voice) as u32, n_voice as u32, voice).ok();
+            lpf[n_voice].set_resonance(opts.resonance.value);
+            draw_voice(&mut disp, (35+40*n_voice) as u32, n_voice as u32, voice).ok();
         }
 
 
         if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
             peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
+        }
+
+        for n in 0..=opts_view.len() {
+            Text::with_alignment(
+                opts_view[n].name(),
+                Point::new(5, (200+10*n) as i32),
+                character_style,
+                Alignment::Left,
+            );
+            Text::with_alignment(
+                &opts_view[n].value(),
+                Point::new(60, (200+10*n) as i32),
+                character_style,
+                Alignment::Right,
+            );
         }
 
         if let Some(value) = td_us {

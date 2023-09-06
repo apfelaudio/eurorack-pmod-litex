@@ -2,6 +2,8 @@ use micromath::F32Ext;
 use midi_types::*;
 use ufmt::derive::uDebug;
 
+use crate::opt::Options;
+
 pub const N_VOICES: usize = 4;
 
 #[derive(Copy, Clone, Debug, PartialEq, uDebug)]
@@ -27,7 +29,8 @@ pub struct Voice {
     pub state: VoiceState,
     pub pitch: i16,
     pub amplitude: f32,
-    pub adsr: AdsrParams,
+    pub velocity: u8,
+    pub adsr: Option<AdsrParams>,
 }
 
 impl Voice {
@@ -38,13 +41,17 @@ impl Voice {
             state,
             pitch: note_to_pitch(note),
             amplitude: 0.0f32,
-            adsr: AdsrParams {
+            velocity,
+            adsr: None,
+            /*
+            AdsrParams {
                 attack_ms: 100u32,
                 decay_ms: 100u32,
                 release_ms: 300u32,
                 attack_amplitude: 1.0f32 * (velocity as f32 / 128.0f32),
                 sustain_amplitude: 0.8f32 * (velocity as f32 / 128.0f32),
             }
+            */
         }
     }
 }
@@ -122,42 +129,55 @@ impl VoiceManager {
         }
     }
 
-    pub fn tick(&mut self, time_ms: u32) {
+    pub fn tick(&mut self, time_ms: u32, opts: &Options) {
         for v in self.voices.iter_mut() {
-            v.state = match v.state {
-                VoiceState::Attack => {
-                    v.amplitude = v.adsr.attack_amplitude * (time_ms - v.start_time_ms) as f32 / v.adsr.attack_ms as f32;
-                    if time_ms > v.adsr.attack_ms + v.start_time_ms {
-                        VoiceState::Decay
-                    } else {
-                        VoiceState::Attack
-                    }
-                },
-                VoiceState::Decay => {
-                    v.amplitude = v.adsr.attack_amplitude - (v.adsr.attack_amplitude - v.adsr.sustain_amplitude) * (time_ms - v.adsr.attack_ms - v.start_time_ms) as f32 / v.adsr.decay_ms as f32;
-                    if time_ms > v.adsr.attack_ms + v.adsr.decay_ms + v.start_time_ms {
+
+            if v.adsr.is_none() {
+                v.adsr = Some( AdsrParams {
+                    attack_ms: opts.attack_ms.value,
+                    decay_ms: opts.decay_ms.value,
+                    release_ms: opts.release_ms.value,
+                    attack_amplitude: 1.0f32 * (v.velocity as f32 / 128.0f32),
+                    sustain_amplitude: 0.8f32 * (v.velocity as f32 / 128.0f32),
+                });
+            }
+
+            if let Some(adsr) = &v.adsr {
+                v.state = match v.state {
+                    VoiceState::Attack => {
+                        v.amplitude = adsr.attack_amplitude * (time_ms - v.start_time_ms) as f32 / adsr.attack_ms as f32;
+                        if time_ms > adsr.attack_ms + v.start_time_ms {
+                            VoiceState::Decay
+                        } else {
+                            VoiceState::Attack
+                        }
+                    },
+                    VoiceState::Decay => {
+                        v.amplitude = adsr.attack_amplitude - (adsr.attack_amplitude - adsr.sustain_amplitude) * (time_ms - adsr.attack_ms - v.start_time_ms) as f32 / adsr.decay_ms as f32;
+                        if time_ms > adsr.attack_ms + adsr.decay_ms + v.start_time_ms {
+                            VoiceState::Sustain
+                        } else {
+                            VoiceState::Decay
+                        }
+                    },
+                    VoiceState::Sustain => {
+                        v.amplitude = adsr.sustain_amplitude;
                         VoiceState::Sustain
-                    } else {
-                        VoiceState::Decay
                     }
-                },
-                VoiceState::Sustain => {
-                    v.amplitude = v.adsr.sustain_amplitude;
-                    VoiceState::Sustain
-                }
-                VoiceState::Release(release_time_ms) => {
-                    v.amplitude = v.adsr.sustain_amplitude * (1.0f32 - (time_ms - release_time_ms) as f32 / v.adsr.release_ms as f32);
-                    if time_ms > release_time_ms + v.adsr.release_ms {
+                    VoiceState::Release(release_time_ms) => {
+                        v.amplitude = adsr.sustain_amplitude * (1.0f32 - (time_ms - release_time_ms) as f32 / adsr.release_ms as f32);
+                        if time_ms > release_time_ms + adsr.release_ms {
+                            VoiceState::Idle
+                        } else {
+                            VoiceState::Release(release_time_ms)
+                        }
+                    }
+                    _ => {
+                        v.note = 0u8;
+                        v.amplitude = 0.0f32;
                         VoiceState::Idle
-                    } else {
-                        VoiceState::Release(release_time_ms)
-                    }
+                    },
                 }
-                _ => {
-                    v.note = 0u8;
-                    v.amplitude = 0.0f32;
-                    VoiceState::Idle
-                },
             }
         }
     }
