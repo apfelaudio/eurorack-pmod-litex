@@ -1,5 +1,4 @@
 use heapless::String;
-use lazy_static::lazy_static;
 
 pub type OptionString = String<32>;
 
@@ -19,50 +18,50 @@ pub struct Option<T> {
 }
 
 pub struct Options {
-    pub delay_len: Option<u32>,
     pub attack_ms: Option<u32>,
     pub decay_ms: Option<u32>,
     pub release_ms: Option<u32>,
     pub resonance: Option<i16>,
+    pub delay_len: Option<u32>,
 }
 
 impl Options {
     pub fn new() -> Options {
         Options {
             delay_len: Option {
-                name: "delay_len".into(),
+                name: "delayln".into(),
                 value: 511,
                 step: 1,
                 min: 128,
                 max: 511,
             },
             attack_ms: Option {
-                name: "attack_ms".into(),
+                name: "attack".into(),
                 value: 100,
-                step: 10,
-                min: 10,
-                max: 1000,
+                step: 50,
+                min: 0,
+                max: 5000,
             },
             decay_ms: Option {
-                name: "decay_ms".into(),
+                name: "decay".into(),
                 value: 100,
-                step: 10,
-                min: 10,
-                max: 1000,
+                step: 50,
+                min: 0,
+                max: 5000,
             },
             release_ms: Option {
-                name: "release_ms".into(),
-                value: 100,
-                step: 10,
-                min: 10,
-                max: 1000,
+                name: "release".into(),
+                value: 300,
+                step: 50,
+                min: 0,
+                max: 5000,
             },
             resonance: Option {
-                name: "resonance".into(),
+                name: "reso".into(),
                 value: 10000,
                 step: 1000,
                 min: 0,
-                max: i16::MAX,
+                max: 20000,
             },
         }
     }
@@ -86,16 +85,26 @@ impl<T: Copy +
     }
 
     fn tick_up(&mut self) {
-        self.value = self.value + self.step;
-        if self.value > self.max {
+        if self.value >= self.max {
             self.value = self.max;
+            return
+        }
+        if self.value + self.step >= self.max {
+            self.value = self.max;
+        } else {
+            self.value = self.value + self.step;
         }
     }
 
     fn tick_down(&mut self) {
-        self.value = self.value - self.step;
-        if self.value < self.min {
+        if self.value <= self.min {
             self.value = self.min;
+            return
+        }
+        if self.value - self.step <= self.min {
+            self.value = self.min;
+        } else {
+            self.value = self.value - self.step;
         }
     }
 }

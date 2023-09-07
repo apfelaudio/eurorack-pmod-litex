@@ -179,6 +179,12 @@ impl VoiceManager {
                     },
                 }
             }
+            if v.amplitude > 1.0f32 {
+                v.amplitude = 1.0f32;
+            }
+            if v.amplitude < 0.0f32 {
+                v.amplitude = 0.0f32;
+            }
         }
     }
 }

@@ -13,8 +13,15 @@ litex_hal::uart! {
 static mut UART_WRITER: Option<Uart> = None;
 
 #[panic_handler]
-fn panic(_: &PanicInfo) -> ! {
-    info!("PANIC");
+fn panic(panic_info: &PanicInfo) -> ! {
+    if let Some(location) = panic_info.location() {
+        info!("panic_handler: file '{}' at line {}",
+            location.file(),
+            location.line(),
+        );
+    } else {
+        info!("panic_handler: no location information");
+    }
     loop {}
 }
 

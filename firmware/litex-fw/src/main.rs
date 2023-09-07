@@ -183,12 +183,6 @@ fn main() -> ! {
 
     let mut opts = opt::Options::new();
 
-    let opts_view: [&dyn opt::OptionTrait; 3] = [
-        &opts.delay_len,
-        &opts.attack_ms,
-        &opts.decay_ms,
-    ];
-
     let pca9635 = peripherals.PCA9635;
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
@@ -246,10 +240,19 @@ fn main() -> ! {
 
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+    let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
+    let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
 
     let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
     let mut v = 0u8;
+
+    let mut cur_opt: usize = 0;
+
+    let mut enc_last: u32 = peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2;
+
+    let mut modif: bool = false;
+    let mut btn_held_ms: u32 = 0;
 
     loop {
 
@@ -272,6 +275,16 @@ fn main() -> ! {
             }
         }
 
+        let enc_now: u32 = peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2;
+        let mut enc_delta: i32 = (enc_now as i32) - (enc_last as i32);
+        if enc_delta > 10 {
+            enc_delta = -1;
+        }
+        if enc_delta < -10 {
+            enc_delta = 1;
+        }
+        enc_last = enc_now;
+
         let time_adsr = (cycle_cnt / 60_000u64) as u32;
 
         while let Ok(event) = midi_in.read() {
@@ -287,27 +300,78 @@ fn main() -> ! {
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
             lpf[n_voice].set_resonance(opts.resonance.value);
-            draw_voice(&mut disp, (35+40*n_voice) as u32, n_voice as u32, voice).ok();
+            draw_voice(&mut disp, (30+37*n_voice) as u32, n_voice as u32, voice).ok();
         }
 
 
         if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
+            btn_held_ms += td_us.unwrap() / 1000;
+        } else {
+            if btn_held_ms > 0 {
+                modif = !modif;
+            }
+            btn_held_ms = 0;
+        }
+
+        if btn_held_ms > 3000 {
             peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
         }
 
-        for n in 0..=opts_view.len() {
-            Text::with_alignment(
-                opts_view[n].name(),
-                Point::new(5, (200+10*n) as i32),
-                character_style,
-                Alignment::Left,
-            );
-            Text::with_alignment(
-                &opts_view[n].value(),
-                Point::new(60, (200+10*n) as i32),
-                character_style,
-                Alignment::Right,
-            );
+
+
+        {
+            let opts_view: [&mut dyn opt::OptionTrait; 5] = [
+                &mut opts.attack_ms,
+                &mut opts.decay_ms,
+                &mut opts.release_ms,
+                &mut opts.resonance,
+                &mut opts.delay_len,
+            ];
+
+
+            if !modif {
+                if enc_delta > 0 && cur_opt < opts_view.len() - 1 {
+                    cur_opt += 1;
+                }
+
+                if enc_delta < 0 && cur_opt > 0{
+                    cur_opt -= 1;
+                }
+            }
+
+            let vy: usize = 190;
+            for n in 0..opts_view.len() {
+                let mut font = font_small_grey;
+                if cur_opt == n {
+                    font = font_small_white;
+                    if modif {
+                        Text::with_alignment(
+                            "-",
+                            Point::new(62, (vy+10*n) as i32),
+                            font,
+                            Alignment::Left,
+                        ).draw(&mut disp).ok();
+                        if enc_delta > 0 {
+                            opts_view[n].tick_up();
+                        }
+                        if enc_delta < 0 {
+                            opts_view[n].tick_down();
+                        }
+                    }
+                }
+                Text::with_alignment(
+                    opts_view[n].name(),
+                    Point::new(5, (vy+10*n) as i32),
+                    font,
+                    Alignment::Left,
+                ).draw(&mut disp).ok();
+                Text::with_alignment(
+                    &opts_view[n].value(),
+                    Point::new(60, (vy+10*n) as i32),
+                    font,
+                    Alignment::Right,
+                ).draw(&mut disp).ok();
+            }
         }
 
         if let Some(value) = td_us {
@@ -331,5 +395,6 @@ fn main() -> ! {
         cycle_cnt = cycle_cnt_now;
         let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
         td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+
     }
 }
