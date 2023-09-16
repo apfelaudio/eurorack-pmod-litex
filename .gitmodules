@@ -12,7 +12,7 @@
 	url = https://github.com/enjoy-digital/litedram.git
 [submodule "deps/litex_boards"]
 	path = deps/litex_boards
-	url = https://github.com/litex-hub/litex-boards.git
+	url = git@github.com:schnommus/litex-boards.git
 [submodule "deps/litespi"]
 	path = deps/litespi
 	url = https://github.com/litex-hub/litespi
@@ -58,9 +58,6 @@
 [submodule "bootloader/deps/tinyusb"]
 	path = bootloader/deps/tinyusb
 	url = https://github.com/hathach/tinyusb_src.git
-[submodule "deps/pythondata-cpu-minerva"]
-	path = deps/pythondata-cpu-minerva
-	url = https://github.com/litex-hub/pythondata-cpu-minerva
 [submodule "firmware/ssd1322"]
 	path = firmware/ssd1322
-	url = https://github.com/edarc/ssd1322
+	url = git@github.com:schnommus/ssd1322.git
