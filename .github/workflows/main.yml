@@ -3,7 +3,7 @@ name: build & test
 on: [push]
 
 jobs:
-  user-bitstream-firmware:
+  build-application:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -31,12 +31,6 @@ jobs:
       - run: mkdir -p build
       # User bitstream
       - run: python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x3E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build
-      - uses: actions/upload-artifact@v3
-        with:
-          name: bitstream-artifacts
-          path: |
-            build/colorlight_i5/gateware/colorlight_i5.bit
-            build/colorlight_i5/csr.svd
       # User firmware
       - name: Build firmware (rust)
         run: |
@@ -47,12 +41,14 @@ jobs:
           ./bin/crcfbigen.py build/colorlight_i5/rust-fw.bin -f -l -o rust-fw.fbi
       - uses: actions/upload-artifact@v3
         with:
-          name: firmware-artifacts
+          name: application-artifacts
           path: |
+            build/colorlight_i5/gateware/colorlight_i5.bit
+            build/colorlight_i5/csr.svd
             build/colorlight_i5/rust-fw.bin
             rust-fw.fbi
 
-  bootloader-bitstream-firmware:
+  build-bootloader:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -80,12 +76,6 @@ jobs:
       - run: mkdir -p build
       # Bootloader bitstream
       - run: python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x2E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build
-      - uses: actions/upload-artifact@v3
-        with:
-          name: bitstream-artifacts
-          path: |
-            build/colorlight_i5/gateware/colorlight_i5.bit
-            build/colorlight_i5/csr.svd
       # Bootloader firmware
       - name: Build firmware (rust)
         run: |
@@ -96,7 +86,9 @@ jobs:
           ./bin/crcfbigen.py bootloader/oc-fw.bin -f -l -o oc-fw.fbi
       - uses: actions/upload-artifact@v3
         with:
-          name: firmware-artifacts
+          name: bootloader-artifacts
           path: |
+           build/colorlight_i5/gateware/colorlight_i5.bit
+           build/colorlight_i5/csr.svd
            bootloader/oc-fw.bin
            oc-fw.fbi
