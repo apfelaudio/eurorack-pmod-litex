@@ -3,10 +3,12 @@ name: build & test
 on: [push]
 
 jobs:
-  ubuntu-build-colorlight-i5:
+  user-bitstream-firmware:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - run: git submodule update --init
+      - run: cd deps/eurorack-pmod && git submodule update --init gateware/external/no2misc
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -25,7 +27,6 @@ jobs:
           python3 -m pip install wheel
           python3 -m pip install construct
           python3 -m pip install Sphinx sphinxcontrib-wavedrom meson ninja setuptools_scm Jinja2
-      - run: git submodule update --init --recursive
       - run: mkdir -p build
       # User bitstream
       - run: python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x3E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build

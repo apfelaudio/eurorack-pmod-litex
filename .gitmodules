@@ -43,9 +43,6 @@
 [submodule "deps/amaranth-soc"]
 	path = deps/amaranth-soc
 	url = https://github.com/amaranth-lang/amaranth-soc.git
-[submodule "deps/amaranth-stdio"]
-	path = deps/amaranth-stdio
-	url = https://github.com/amaranth-lang/amaranth-stdio.git
 [submodule "deps/lambdasoc"]
 	path = deps/lambdasoc
 	url = https://github.com/schnommus/lambdasoc.git
