@@ -12,7 +12,7 @@
 	url = https://github.com/enjoy-digital/litedram.git
 [submodule "deps/litex_boards"]
 	path = deps/litex_boards
-	url = git@github.com:schnommus/litex-boards.git
+	url = https://github.com/schnommus/litex-boards.git
 [submodule "deps/litespi"]
 	path = deps/litespi
 	url = https://github.com/litex-hub/litespi
@@ -39,7 +39,7 @@
 	url = https://github.com/enjoy-digital/liteiclink
 [submodule "deps/amaranth"]
 	path = deps/amaranth
-	url = git@github.com:schnommus/amaranth.git
+	url = https://github.com/schnommus/amaranth.git
 [submodule "deps/amaranth-soc"]
 	path = deps/amaranth-soc
 	url = https://github.com/amaranth-lang/amaranth-soc.git
@@ -48,10 +48,10 @@
 	url = https://github.com/amaranth-lang/amaranth-stdio.git
 [submodule "deps/lambdasoc"]
 	path = deps/lambdasoc
-	url = git@github.com:schnommus/lambdasoc.git
+	url = https://github.com/schnommus/lambdasoc.git
 [submodule "deps/luna"]
 	path = deps/luna
-	url = git@github.com:schnommus/luna.git
+	url = https://github.com/schnommus/luna.git
 [submodule "deps/python-usb-protocol"]
 	path = deps/python-usb-protocol
 	url = https://github.com/usb-tools/python-usb-protocol
@@ -60,4 +60,4 @@
 	url = https://github.com/hathach/tinyusb_src.git
 [submodule "firmware/ssd1322"]
 	path = firmware/ssd1322
-	url = git@github.com:schnommus/ssd1322.git
+	url = https://github.com/schnommus/ssd1322.git
