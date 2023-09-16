@@ -8,8 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: git submodule update --init
+      - run: cd deps/pythondata-software-picolibc && git submodule update --init
       - run: cd deps/eurorack-pmod && git submodule update --init gateware/external/no2misc
-      - run: cd deps/litex && git submodule update --init
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -57,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: git submodule update --init
+      - run: cd deps/pythondata-software-picolibc && git submodule update --init
       - run: cd deps/eurorack-pmod && git submodule update --init gateware/external/no2misc
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
