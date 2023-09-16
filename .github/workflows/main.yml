@@ -9,6 +9,7 @@ jobs:
       - uses: actions/checkout@v3
       - run: git submodule update --init
       - run: cd deps/eurorack-pmod && git submodule update --init gateware/external/no2misc
+      - run: cd deps/litex && git submodule update --init
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -41,8 +42,60 @@ jobs:
         run: |
           cd firmware
           BOARD=colorlight_i5 ./build.sh
+      - name: Firmware FBI
+        run: |
+          ./bin/crcfbigen.py build/colorlight_i5/rust-fw.bin -f -l -o rust-fw.fbi
       - uses: actions/upload-artifact@v3
         with:
           name: firmware-artifacts
           path: |
             build/colorlight_i5/rust-fw.bin
+            rust-fw.fbi
+
+  bootloader-bitstream-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: git submodule update --init
+      - run: cd deps/eurorack-pmod && git submodule update --init gateware/external/no2misc
+      - uses: YosysHQ/setup-oss-cad-suite@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            override: True
+            components: rustfmt, clippy
+            target: riscv32imac-unknown-none-elf
+      - run: cargo install svd2rust
+      - run: svd2rust --version
+      - uses: gregdavill/setup-riscv-gnu-toolchain@v2
+      - run: riscv-none-elf-gcc --version
+      - name: Install python packages
+        run: |
+          python3 -m pip install setuptools
+          python3 -m pip install pycrc
+          python3 -m pip install wheel
+          python3 -m pip install construct
+          python3 -m pip install Sphinx sphinxcontrib-wavedrom meson ninja setuptools_scm Jinja2
+      - run: mkdir -p build
+      # Bootloader bitstream
+      - run: python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x2E0000 --ecppack-bootaddr 0x100000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: bitstream-artifacts
+          path: |
+            build/colorlight_i5/gateware/colorlight_i5.bit
+            build/colorlight_i5/csr.svd
+      # Bootloader firmware
+      - name: Build firmware (rust)
+        run: |
+          cd bootloader
+          make
+      - name: Firmware FBI
+        run: |
+          ./bin/crcfbigen.py bootloader/oc-fw.bin -f -l -o oc-fw.fbi
+      - uses: actions/upload-artifact@v3
+        with:
+          name: firmware-artifacts
+          path: |
+           bootloader/oc-fw.bin
+           oc-fw.fbi
