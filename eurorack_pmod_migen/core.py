@@ -10,7 +10,7 @@ SOURCES_ROOT = os.path.join(
         )
 
 class EurorackPmod(Module, AutoCSR):
-    def __init__(self, platform, pads, w=16, output_csr_read_only=True):
+    def __init__(self, platform, pads, w=16, output_csr_read_only=True, sim=False):
         self.w = w
         self.cal_mem_file = os.path.join(SOURCES_ROOT, "cal/cal_mem.hex")
         self.codec_cfg_file = os.path.join(SOURCES_ROOT, "drivers/ak4619-cfg.hex")
@@ -112,24 +112,28 @@ class EurorackPmod(Module, AutoCSR):
             i_force_dac_output = self.force_dac_output,
         )
 
+        if not sim:
+            # FIXME: For now these tristate implementations are ECP5 specific.
+            self.specials += Instance("TRELLIS_IO",
+                p_DIR = "BIDIR",
+                i_B   = pads.i2c_scl,
+                i_I   = 0,
+                o_O   = self.i2c_scl_i,
+                i_T   = ~self.i2c_scl_oe
+            )
 
-        # FIXME: For now these tristate implementations are ECP5 specific.
-
-        self.specials += Instance("TRELLIS_IO",
-            p_DIR = "BIDIR",
-            i_B   = pads.i2c_scl,
-            i_I   = 0,
-            o_O   = self.i2c_scl_i,
-            i_T   = ~self.i2c_scl_oe
-        )
-
-        self.specials += Instance("TRELLIS_IO",
-            p_DIR = "BIDIR",
-            i_B   = pads.i2c_sda,
-            i_I   = 0,
-            o_O   = self.i2c_sda_i,
-            i_T   = ~self.i2c_sda_oe
-        )
+            self.specials += Instance("TRELLIS_IO",
+                p_DIR = "BIDIR",
+                i_B   = pads.i2c_sda,
+                i_I   = 0,
+                o_O   = self.i2c_sda_i,
+                i_T   = ~self.i2c_sda_oe
+            )
+        else:
+            self.comb += [
+                pads.i2c_sda.eq(~self.i2c_sda_oe),
+                pads.i2c_scl.eq(~self.i2c_scl_oe),
+            ]
 
         # Exposed CSRs
 

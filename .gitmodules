@@ -6,7 +6,7 @@
 	url = https://github.com/m-labs/migen.git
 [submodule "deps/litex"]
 	path = deps/litex
-	url = https://github.com/enjoy-digital/litex.git
+	url = git@github.com:schnommus/litex.git
 [submodule "deps/litedram"]
 	path = deps/litedram
 	url = https://github.com/enjoy-digital/litedram.git
@@ -37,3 +37,9 @@
 [submodule "deps/liteiclink"]
 	path = deps/liteiclink
 	url = https://github.com/enjoy-digital/liteiclink
+[submodule "deps/litescope"]
+	path = deps/litescope
+	url = https://github.com/enjoy-digital/litescope
+[submodule "deps/pythondata-misc-tapcf"]
+	path = deps/pythondata-misc-tapcf
+	url = https://github.com/litex-hub/pythondata-misc-tapcfg.git
