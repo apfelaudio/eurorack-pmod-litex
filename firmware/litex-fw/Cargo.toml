@@ -11,9 +11,6 @@ riscv-rt = "*"
 panic-halt = "*"
 litex-hal = { path = "../deps/rust-litex-hal" }
 litex-pac = { path = "../litex-pac", features = ["rt"] }
-defmt = "0.3.4"
-embedded-midi = { path = "../deps/embedded-midi" }
 micromath = "2.0.0"
-midi-types = "0.1.7"
-seq-macro = "0.3.5"
-paste = "1.0.14"
+heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+ufmt = "0.2.0"

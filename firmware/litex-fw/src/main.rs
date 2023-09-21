@@ -2,19 +2,16 @@
 #![no_main]
 #![allow(dead_code)]
 
-use core::panic::PanicInfo;
-use defmt;
+use heapless::String;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use litex_pac as pac;
-use riscv;
 use riscv_rt::entry;
 
-const SYSTEM_CLOCK_FREQUENCY: u32 = 12_000_000;
+mod log;
+use log::*;
 
-// Globals used by `defmt` logger such that we can log to UART from anywhere.
-static mut ENCODER: defmt::Encoder = defmt::Encoder::new();
-static mut UART_WRITER: Option<Uart> = None;
+const SYSTEM_CLOCK_FREQUENCY: u32 = 50_000_000;
 
 litex_hal::uart! {
     Uart: litex_pac::UART,
@@ -24,70 +21,26 @@ litex_hal::timer! {
     Timer: litex_pac::TIMER0,
 }
 
-#[defmt::global_logger]
-struct Logger;
-
-unsafe impl defmt::Logger for Logger {
-    fn acquire() {
-        unsafe {
-            riscv::interrupt::disable();
-            ENCODER.start_frame(do_write);
-        }
-    }
-    unsafe fn flush() {}
-    unsafe fn release() {
-        ENCODER.end_frame(do_write);
-        unsafe {
-            riscv::interrupt::enable();
-        }
-    }
-    unsafe fn write(bytes: &[u8]) {
-        ENCODER.write(bytes, do_write);
-    }
-}
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    defmt::error!("{}", defmt::Display2Format(info));
-    loop {}
-}
-
-fn do_write(bytes: &[u8]) {
-    unsafe {
-        if let Some(writer) = &mut UART_WRITER {
-            writer.bwrite_all(bytes).ok();
-        }
-    }
-}
-
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
 
-    unsafe {
-        UART_WRITER = Some(Uart::new(peripherals.UART));
-        if let Some(writer) = &mut UART_WRITER {
-            writer
-                .bwrite_all(b"hello from litex-fw! dropping to defmt logging --\n")
-                .ok();
-        }
-    }
+    log::init(peripherals.UART);
+    log::info!("hello from litex-fw!");
 
     let mut elapsed: f32 = 0.0f32;
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
-    defmt::info!("Starting main loop --");
-
     loop {
-        defmt::info!("jack_detect {=u8:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
-        defmt::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
-        defmt::info!("input1 {}", peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits() as i16);
-        defmt::info!("input2 {}", peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits() as i16);
-        defmt::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
-        defmt::info!("serial {=u32:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
-        timer.delay_ms(1000u32);
-        defmt::info!("tick - elapsed {} sec", elapsed);
-        elapsed += 1.0f32;
+        log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
+        log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
+        log::info!("input1 {}", peripherals.EURORACK_PMOD0.csr_cal_in1.read().bits() as i16);
+        log::info!("input2 {}", peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits() as i16);
+        log::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
+        log::info!("serial {:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
+        timer.delay_ms(10u32);
+        log::info!("tick - elapsed {} msec", (elapsed * 1000.0) as u32);
+        elapsed += 0.01f32;
     }
 }
