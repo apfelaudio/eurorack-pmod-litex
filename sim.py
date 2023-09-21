@@ -42,15 +42,10 @@ def add_eurorack_pmod(soc):
 
     # Now instantiate a EurorackPmod.
     eurorack_pmod_pads = soc.platform.request("eurorack_pmod_p0")
-    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, sim=True)
+    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, output_csr_read_only=False, sim=True)
 
-    # Pipe inputs straight to outputs.
-    soc.comb += [
-        eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
-        eurorack_pmod.cal_out1.eq(eurorack_pmod.cal_in1),
-        eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
-        eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
-    ]
+    # Simulate all outputs looped back to inputs on the PMOD I2S
+    soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
 

@@ -39,6 +39,12 @@ fn main() -> ! {
         log::info!("input2 {}", peripherals.EURORACK_PMOD0.csr_cal_in2.read().bits() as i16);
         log::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
         log::info!("serial {:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
+
+        unsafe {
+            peripherals.EURORACK_PMOD0.csr_cal_out0.write(|w| w.bits(((elapsed * 1000.0) as i32) as u32));
+            peripherals.EURORACK_PMOD0.csr_cal_out1.write(|w| w.bits(((-elapsed * 1000.0) as i16) as u32));
+        }
+
         timer.delay_ms(10u32);
         log::info!("tick - elapsed {} msec", (elapsed * 1000.0) as u32);
         elapsed += 0.01f32;
