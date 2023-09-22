@@ -6,6 +6,9 @@ from litex.tools.litex_sim import main
 
 from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
+from litex.soc.cores.dma import *
+from litex.soc.interconnect import wishbone
+from litex.soc.interconnect.stream import ClockDomainCrossing
 
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
@@ -42,12 +45,38 @@ def add_eurorack_pmod(soc):
 
     # Now instantiate a EurorackPmod.
     eurorack_pmod_pads = soc.platform.request("eurorack_pmod_p0")
-    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, output_csr_read_only=False, sim=True)
+    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, sim=True)
 
     # Simulate all outputs looped back to inputs on the PMOD I2S
     soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
 
+    # CDC
+    cdc_in0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="clk_fs", cd_to="sys")
+    cdc_out0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="sys", cd_to="clk_fs")
+
+    # CDC <-> I2S (clk_fs domain)
+    soc.comb += [
+        # ADC -> CDC
+        cdc_in0.sink.valid.eq(1),
+        cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
+        # CDC -> DAC
+        cdc_out0.source.ready.eq(1),
+        eurorack_pmod.cal_out0.eq(cdc_out0.source.payload.data)
+    ]
+
+    # DMA master (ADC -> CDC -> SRAM)
+    soc.submodules.dma_writer0 = WishboneDMAWriter(wishbone.Interface(), endianness="big", with_csr=True)
+    soc.bus.add_master(master=soc.dma_writer0.bus)
+    soc.comb += cdc_in0.source.connect(soc.dma_writer0.sink)
+
+    # DMA master (SRAM -> CDC -> DAC)
+    soc.submodules.dma_reader0 = WishboneDMAReader(wishbone.Interface(), endianness="big", with_csr=True)
+    soc.bus.add_master(master=soc.dma_reader0.bus)
+    soc.comb += soc.dma_reader0.source.connect(cdc_out0.sink)
+
     soc.add_module("eurorack_pmod0", eurorack_pmod)
+    soc.add_module("cdc_in0", cdc_in0)
+    soc.add_module("cdc_out0", cdc_out0)
 
 
 def sim_soc_extension(sim_config, soc):
