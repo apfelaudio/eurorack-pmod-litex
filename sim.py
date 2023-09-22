@@ -58,7 +58,8 @@ def add_eurorack_pmod(soc):
     soc.comb += [
         # ADC -> CDC
         cdc_in0.sink.valid.eq(1),
-        cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
+        cdc_in0.sink.payload.data.eq(0xDEADBEEF),
+        #cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
         # CDC -> DAC
         cdc_out0.source.ready.eq(1),
         eurorack_pmod.cal_out0.eq(cdc_out0.source.payload.data)
