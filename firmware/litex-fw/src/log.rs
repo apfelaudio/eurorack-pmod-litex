@@ -5,6 +5,7 @@ use heapless::String;
 use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
+use core::arch::asm;
 
 litex_hal::uart! {
     Uart: pac::UART,
@@ -33,8 +34,26 @@ fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
 
 #[export_name = "DefaultHandler"]
 fn default_handler() {
-    _logger_write(b"default_handler\n");
-    loop {}
+    _logger_write(b"irq\n");
+
+    let mut pending: u32 = 0;
+    unsafe {
+    asm!(
+        "csrr {x}, 0xFC0",
+        x = inout(reg) pending,
+        );
+    }
+
+    if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
+        let peripherals = unsafe { pac::Peripherals::steal() };
+        let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
+        info!("dmaw0 {:x}", pending_type);
+        unsafe {
+            peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
+        }
+    } else {
+        info!("unknown irq!!");
+    }
 }
 
 pub fn _logger_write(bytes: &[u8]) {

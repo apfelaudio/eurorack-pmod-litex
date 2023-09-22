@@ -9,6 +9,7 @@ from litex.soc.cores.clock import *
 from litex.soc.cores.dma import *
 from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.stream import ClockDomainCrossing
+from litex.soc.interconnect.csr_eventmanager import *
 
 from eurorack_pmod_migen.core import *
 from eurorack_pmod_migen.blocks import *
@@ -65,12 +66,13 @@ def add_eurorack_pmod(soc):
         eurorack_pmod.cal_out0.eq(cdc_out0.source.payload.data)
     ]
 
-    # DMA master (ADC -> CDC -> SRAM)
+    # DMA master (ADC -> CDC -> Wishbone)
     soc.submodules.dma_writer0 = WishboneDMAWriter(wishbone.Interface(), endianness="big", with_csr=True)
     soc.bus.add_master(master=soc.dma_writer0.bus)
     soc.comb += cdc_in0.source.connect(soc.dma_writer0.sink)
+    soc.irq.add("dma_writer0", use_loc_if_exists=True)
 
-    # DMA master (SRAM -> CDC -> DAC)
+    # DMA master (Wishbone -> CDC -> DAC)
     soc.submodules.dma_reader0 = WishboneDMAReader(wishbone.Interface(), endianness="big", with_csr=True)
     soc.bus.add_master(master=soc.dma_reader0.bus)
     soc.comb += soc.dma_reader0.source.connect(cdc_out0.sink)

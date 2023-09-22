@@ -7,9 +7,11 @@ use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use litex_pac as pac;
 use riscv_rt::entry;
+use riscv;
 use core::sync::atomic::fence;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
+use core::arch::asm;
 
 mod log;
 use log::*;
@@ -58,6 +60,23 @@ fn main() -> ! {
         peripherals.DMA_WRITER0.length.write(|w| w.bits(BUF_SZ_BYTES as u32));
         peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
         peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
+
+        peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
+        peripherals.DMA_WRITER0.ev_enable.write(|w| w.done().bit(true));
+
+        asm!(
+            "li {x}, 0xfff",
+            "csrw mie, {x}",
+            x = out(reg) _,
+            );
+
+        asm!(
+            "li {x}, 0x4",
+            "csrw 0xBC0, {x}",
+            x = out(reg) _,
+            );
+
+        riscv::interrupt::enable();
     }
 
     loop {
@@ -65,6 +84,7 @@ fn main() -> ! {
         unsafe {
             fence(Ordering::Release);
             compiler_fence(Ordering::Release);
+            log::info!("{:x}", peripherals.DMA_WRITER0.ev_pending.read().bits());
             let buf_read = BUF_IN.clone();
             for i in 0..BUF_SZ_WORDS {
                 log::info!("{:x}@{:x}", i, buf_read[i]);
