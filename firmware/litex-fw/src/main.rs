@@ -32,6 +32,7 @@ const BUF_SZ_BYTES: usize = BUF_SZ_WORDS * 4;
 static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
+static mut BUF_IN_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS]
 
 #[entry]
 fn main() -> ! {

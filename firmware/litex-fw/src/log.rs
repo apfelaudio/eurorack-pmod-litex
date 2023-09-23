@@ -49,32 +49,44 @@ fn default_handler() {
     if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
         let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
         let offset = peripherals.DMA_WRITER0.offset.read().bits();
-        info!("dmaw0 {:x} {:x}", pending_type, offset);
+        //info!("dmaw0 {:x} {:x}", pending_type, offset);
         unsafe {
             peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
         }
-        if 0x10 == offset {
-            let base = peripherals.DMA_WRITER0.base0.read().bits();
-            let buf = base as *const u32;
+
+        let mut buf_copy: [u32; 0x10] = [0; 0x10];
+        let base = peripherals.DMA_WRITER0.base0.read().bits();
+        let buf = base as *const u32;
+        let mut hi = false;
+
+        if offset == 0x10 {
             for i in 0..0x10 {
                 unsafe {
-                info!("{:x}@{:x}", i, *buf.add(i));
+                    buf_copy[i] = *buf.add(i);
                 }
             }
         }
+
         if offset == 0x1f {
-            let base = peripherals.DMA_WRITER0.base0.read().bits();
-            let buf = base as *const u32;
-            for i in 0x10..0x1f {
+            for i in 0x0..0x10 {
                 unsafe {
-                info!("{:x}@{:x}", i, *buf.add(i));
+                    buf_copy[i] = *buf.add(i+0x10);
                 }
             }
+            hi = true;
+        }
+
+        for i in 0..0x10 {
+            let mut fac = 0;
+            if hi {
+                fac += 0x10;
+            }
+            info!("{:x}@{:x}", i+fac, buf_copy[i]);
         }
     } else if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
         let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();
         let offset = peripherals.DMA_READER0.offset.read().bits();
-        info!("dmar0 {:x} {:x}", pending_type, offset);
+        //info!("dmar0 {:x} {:x}", pending_type, offset);
         unsafe {
             peripherals.DMA_READER0.ev_pending.write(|w| w.bits(pending_type));
         }
