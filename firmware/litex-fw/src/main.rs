@@ -87,6 +87,7 @@ fn main() -> ! {
 
             }
         }
+        timer.delay_ms(10u32);
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
@@ -95,7 +96,6 @@ fn main() -> ! {
         log::info!("input3 {}", peripherals.EURORACK_PMOD0.csr_cal_in3.read().bits() as i16);
         log::info!("serial {:x}", peripherals.EURORACK_PMOD0.csr_eeprom_serial.read().bits() as u32);
 
-        timer.delay_ms(10u32);
         log::info!("tick - elapsed {} msec", (elapsed * 1000.0) as u32);
         elapsed += 0.01f32;
         */

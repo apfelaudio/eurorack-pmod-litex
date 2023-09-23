@@ -6,7 +6,7 @@ use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use core::arch::asm;
-use crate::BUF_IN_CP;
+use crate::{BUF_IN, BUF_IN_CP};
 use core::sync::atomic::fence;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
@@ -51,24 +51,13 @@ fn default_handler() {
 
     let peripherals = unsafe { pac::Peripherals::steal() };
     if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
-        let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
         let offset = peripherals.DMA_WRITER0.offset.read().bits();
         //info!("dmaw0 {:x} {:x}", pending_type, offset);
-        unsafe {
-            peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
-        }
-
-        let mut buf_copy: [u32; 0x10] = [0; 0x10];
-        let base = peripherals.DMA_WRITER0.base0.read().bits();
-        let buf = base as *const u32;
-
-        fence(Ordering::Release);
-        compiler_fence(Ordering::Release);
 
         if offset == 0x10 {
             for i in 0..0x10 {
                 unsafe {
-                    BUF_IN_CP[i] = *buf.add(i);
+                    BUF_IN_CP[i] = BUF_IN[i];
                 }
             }
         }
@@ -76,9 +65,14 @@ fn default_handler() {
         if offset == 0x1f {
             for i in 0x10..0x20 {
                 unsafe {
-                    BUF_IN_CP[i] = *buf.add(i);
+                    BUF_IN_CP[i] = BUF_IN[i];
                 }
             }
+        }
+
+        let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
+        unsafe {
+            peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
         }
     }
 
