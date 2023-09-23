@@ -8,3 +8,6 @@ rustflags = [
 
 [build]
 target = "riscv32imac-unknown-none-elf"
+
+[profile.release]
+opt-level = 1
