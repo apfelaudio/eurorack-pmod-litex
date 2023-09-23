@@ -6,7 +6,7 @@ use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use core::arch::asm;
-use crate::{BUF_IN, BUF_IN_CP, BUF_OUT, BUF_OUT_CP};
+use crate::{BUF_IN, BUF_IN_CP, BUF_OUT, BUF_OUT_CP, BUF_SZ_WORDS};
 use core::sync::atomic::fence;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
@@ -57,16 +57,16 @@ fn default_handler() {
             asm!("fence iorw, iorw");
         }
 
-        if offset == 0x10 {
-            for i in 0..0x10 {
+        if offset as usize == BUF_SZ_WORDS/2 {
+            for i in 0..(BUF_SZ_WORDS/2) {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
                 }
             }
         }
 
-        if offset == 0x1f {
-            for i in 0x10..0x20 {
+        if offset as usize== (BUF_SZ_WORDS-1) {
+            for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
                 }
@@ -86,18 +86,18 @@ fn default_handler() {
             asm!("fence iorw, iorw");
         }
 
-        if offset == 0x10 {
-            for i in 0..0x10 {
+        if offset as usize == BUF_SZ_WORDS/2 {
+            for i in 0..(BUF_SZ_WORDS/2) {
                 unsafe {
-                    BUF_OUT[i] = BUF_OUT_CP[i];
+                    BUF_OUT[i] = BUF_IN_CP[i];
                 }
             }
         }
 
-        if offset == 0x1f {
-            for i in 0x10..0x20 {
+        if offset as usize == (BUF_SZ_WORDS-1) {
+            for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
                 unsafe {
-                    BUF_OUT[i] = BUF_OUT_CP[i];
+                    BUF_OUT[i] = BUF_IN_CP[i];
                 }
             }
         }

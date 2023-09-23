@@ -23,7 +23,7 @@ litex_hal::timer! {
     Timer: litex_pac::TIMER0,
 }
 
-const BUF_SZ_WORDS: usize = 32;
+const BUF_SZ_WORDS: usize = 128;
 const BUF_SZ_BYTES: usize = BUF_SZ_WORDS * 4;
 
 static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
