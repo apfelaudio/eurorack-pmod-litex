@@ -32,7 +32,7 @@ const BUF_SZ_BYTES: usize = BUF_SZ_WORDS * 4;
 static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
-static mut BUF_IN_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS]
+static mut BUF_IN_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
 #[entry]
 fn main() -> ! {
@@ -83,19 +83,13 @@ fn main() -> ! {
     }
 
     loop {
-        /*
         log::info!("READ");
         unsafe {
-            fence(Ordering::Release);
-            compiler_fence(Ordering::Release);
-            log::info!("{:x}", peripherals.DMA_WRITER0.ev_pending.read().bits());
-            let buf_read = BUF_IN.clone();
             for i in 0..BUF_SZ_WORDS {
-                log::info!("{:x}@{:x}", i, buf_read[i]);
+                log::info!("{:x}@{:x}", i, BUF_IN_CP[i]);
 
             }
         }
-        */
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);

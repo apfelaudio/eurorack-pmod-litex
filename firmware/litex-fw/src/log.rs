@@ -6,6 +6,10 @@ use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use core::arch::asm;
+use crate::BUF_IN_CP;
+use core::sync::atomic::fence;
+use core::sync::atomic::compiler_fence;
+use core::sync::atomic::Ordering;
 
 litex_hal::uart! {
     Uart: pac::UART,
@@ -57,41 +61,34 @@ fn default_handler() {
         let mut buf_copy: [u32; 0x10] = [0; 0x10];
         let base = peripherals.DMA_WRITER0.base0.read().bits();
         let buf = base as *const u32;
-        let mut hi = false;
+
+        fence(Ordering::Release);
+        compiler_fence(Ordering::Release);
 
         if offset == 0x10 {
             for i in 0..0x10 {
                 unsafe {
-                    buf_copy[i] = *buf.add(i);
+                    BUF_IN_CP[i] = *buf.add(i);
                 }
             }
         }
 
         if offset == 0x1f {
-            for i in 0x0..0x10 {
+            for i in 0x10..0x20 {
                 unsafe {
-                    buf_copy[i] = *buf.add(i+0x10);
+                    BUF_IN_CP[i] = *buf.add(i+0x10);
                 }
             }
-            hi = true;
         }
+    }
 
-        for i in 0..0x10 {
-            let mut fac = 0;
-            if hi {
-                fac += 0x10;
-            }
-            info!("{:x}@{:x}", i+fac, buf_copy[i]);
-        }
-    } else if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
+    if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
         let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();
         let offset = peripherals.DMA_READER0.offset.read().bits();
         //info!("dmar0 {:x} {:x}", pending_type, offset);
         unsafe {
             peripherals.DMA_READER0.ev_pending.write(|w| w.bits(pending_type));
         }
-    } else {
-        info!("unknown irq!!");
     }
 }
 
