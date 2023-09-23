@@ -52,9 +52,6 @@ def add_eurorack_pmod(soc, sample_rate=48000):
     eurorack_pmod_pads = soc.platform.request("eurorack_pmod_p0")
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
 
-    # Simulate all outputs looped back to inputs on the PMOD I2S
-    soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
-
     # CDC
     cdc_in0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="clk_fs", cd_to="sys")
     cdc_out0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="sys", cd_to="clk_fs")
@@ -63,7 +60,6 @@ def add_eurorack_pmod(soc, sample_rate=48000):
     soc.comb += [
         # ADC -> CDC
         cdc_in0.sink.valid.eq(1),
-        #cdc_in0.sink.payload.data.eq(0xDEADBEEF),
         cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
         # CDC -> DAC
         cdc_out0.source.ready.eq(1),

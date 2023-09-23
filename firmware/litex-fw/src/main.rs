@@ -30,6 +30,7 @@ static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
 static mut BUF_IN_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
+static mut BUF_OUT_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
 #[entry]
 fn main() -> ! {
@@ -44,7 +45,7 @@ fn main() -> ! {
 
     for i in 0..BUF_SZ_WORDS {
         unsafe {
-            BUF_OUT[i] = 256*((i as u32));
+            BUF_OUT_CP[i] = 256*((i as u32));
         }
     }
 
@@ -59,7 +60,7 @@ fn main() -> ! {
         peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
         peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
 
-        peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
+        //peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
         peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
 
         asm!(
