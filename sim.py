@@ -137,44 +137,54 @@ class DMARouter(LiteXModule):
         )
 
         fsm_read.act("EVEN",
-            self.source.valid.eq(0),
             self.dma_reader0.sink.valid.eq(1),
             self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
             If(self.dma_reader0.sink.ready,
+                NextValue(self.dma_reader0.source.ready, 1),
                 NextValue(offset_words_r, offset_words_r + 1),
-                NextState("ODD"),
-            ),
-        )
-
-        fsm_read.act("ODD",
-            self.dma_reader0.sink.valid.eq(1),
-            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
-            If(self.dma_reader0.sink.ready,
-                NextValue(offset_words_r, offset_words_r + 1),
-                If((offset_words_r + 1) == length_words,
-                    NextValue(offset_words_r, 0)
-                ),
                 NextState("WAIT1"),
             ),
         )
 
         fsm_read.act("WAIT1",
-            NextValue(self.dma_reader0.source.ready, 1),
             # Not sure about this...
             If(self.dma_reader0.source.valid,
+                NextValue(self.dma_reader0.source.ready, 0),
                 NextValue(self.source.out0, self.dma_reader0.source.data[:16]),
                 NextValue(self.source.out1, self.dma_reader0.source.data[16:32]),
-                NextState("WAIT2"),
+                NextState("ODD"),
             )
          )
 
+        fsm_read.act("ODD",
+            self.dma_reader0.sink.valid.eq(1),
+            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
+            If(self.dma_reader0.sink.ready,
+                NextValue(self.dma_reader0.source.ready, 1),
+                NextValue(offset_words_r, offset_words_r + 1),
+                If((offset_words_r + 1) == length_words,
+                    NextValue(offset_words_r, 0)
+                ),
+                NextState("WAIT2"),
+            ),
+        )
+
+
         fsm_read.act("WAIT2",
             # Not sure about this...
-            If(self.source.ready,
-                self.source.valid.eq(1),
+            If(self.dma_reader0.source.valid,
+                NextValue(self.source.valid, 1),
                 NextValue(self.dma_reader0.source.ready, 0),
                 NextValue(self.source.out2, self.dma_reader0.source.data[:16]),
                 NextValue(self.source.out3, self.dma_reader0.source.data[16:32]),
+                NextState("WAIT3"),
+            )
+         )
+
+        fsm_read.act("WAIT3",
+            # Not sure about this...
+            If(self.source.ready,
+                NextValue(self.source.valid, 0),
                 NextState("EVEN"),
             )
          )
