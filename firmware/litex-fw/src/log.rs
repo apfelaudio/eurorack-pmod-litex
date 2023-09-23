@@ -34,7 +34,7 @@ fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
 
 #[export_name = "DefaultHandler"]
 fn default_handler() {
-    _logger_write(b"irq\n");
+    //_logger_write(b"irq\n");
 
     let mut pending: u32 = 0;
     unsafe {
@@ -52,6 +52,24 @@ fn default_handler() {
         info!("dmaw0 {:x} {:x}", pending_type, offset);
         unsafe {
             peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
+        }
+        if 0x10 == offset {
+            let base = peripherals.DMA_WRITER0.base0.read().bits();
+            let buf = base as *const u32;
+            for i in 0..0x10 {
+                unsafe {
+                info!("{:x}@{:x}", i, *buf.add(i));
+                }
+            }
+        }
+        if offset == 0x1f {
+            let base = peripherals.DMA_WRITER0.base0.read().bits();
+            let buf = base as *const u32;
+            for i in 0x10..0x1f {
+                unsafe {
+                info!("{:x}@{:x}", i, *buf.add(i));
+                }
+            }
         }
     } else if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
         let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();

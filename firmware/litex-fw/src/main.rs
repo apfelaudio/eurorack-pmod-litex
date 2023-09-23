@@ -82,6 +82,7 @@ fn main() -> ! {
     }
 
     loop {
+        /*
         log::info!("READ");
         unsafe {
             fence(Ordering::Release);
@@ -93,6 +94,7 @@ fn main() -> ! {
 
             }
         }
+        */
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
