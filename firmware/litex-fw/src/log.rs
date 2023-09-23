@@ -58,6 +58,9 @@ fn default_handler() {
             for i in 0..0x10 {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
+                    fence(Ordering::Release);
+                    BUF_IN_CP[i] = BUF_IN[i];
+                    fence(Ordering::Release);
                 }
             }
         }
@@ -66,6 +69,9 @@ fn default_handler() {
             for i in 0x10..0x20 {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
+                    fence(Ordering::Release);
+                    BUF_IN_CP[i] = BUF_IN[i];
+                    fence(Ordering::Release);
                 }
             }
         }
