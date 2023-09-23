@@ -79,7 +79,6 @@ fn default_handler() {
         }
     }
 
-    /*
     if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
         let offset = peripherals.DMA_READER0.offset.read().bits();
 
@@ -108,7 +107,6 @@ fn default_handler() {
             peripherals.DMA_READER0.ev_pending.write(|w| w.bits(pending_type));
         }
     }
-    */
 }
 
 pub fn _logger_write(bytes: &[u8]) {

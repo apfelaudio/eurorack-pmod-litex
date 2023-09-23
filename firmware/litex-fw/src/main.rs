@@ -60,7 +60,7 @@ fn main() -> ! {
         peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
         peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
 
-        //peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
+        peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
         peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
 
         asm!(
