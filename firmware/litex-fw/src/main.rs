@@ -88,7 +88,7 @@ fn main() -> ! {
 
             }
         }
-        timer.delay_ms(10u32);
+        timer.delay_ms(500u32);
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
