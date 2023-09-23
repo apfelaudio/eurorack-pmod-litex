@@ -82,6 +82,7 @@ fn main() -> ! {
     loop {
         log::info!("READ");
         unsafe {
+            asm!("fence iorw, iorw");
             for i in 0..BUF_SZ_WORDS {
                 log::info!("{:x}@{:x}", i, BUF_IN_CP[i]);
 

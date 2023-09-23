@@ -54,18 +54,13 @@ fn default_handler() {
         let offset = peripherals.DMA_WRITER0.offset.read().bits();
         //info!("dmaw0 {:x} {:x}", pending_type, offset);
         unsafe {
-        asm!(
-            "fence iorw, iorw",
-            );
+            asm!("fence iorw, iorw");
         }
 
         if offset == 0x10 {
             for i in 0..0x10 {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
-                    fence(Ordering::Release);
-                    BUF_IN_CP[i] = BUF_IN[i];
-                    fence(Ordering::Release);
                 }
             }
         }
@@ -74,9 +69,6 @@ fn default_handler() {
             for i in 0x10..0x20 {
                 unsafe {
                     BUF_IN_CP[i] = BUF_IN[i];
-                    fence(Ordering::Release);
-                    BUF_IN_CP[i] = BUF_IN[i];
-                    fence(Ordering::Release);
                 }
             }
         }
