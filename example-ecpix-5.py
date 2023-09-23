@@ -11,6 +11,10 @@ import lxbuildenv
 
 from litex.build.generic_platform import *
 from litex.soc.cores.clock import *
+from litex.soc.cores.dma import *
+from litex.soc.interconnect import wishbone
+from litex.soc.interconnect.stream import ClockDomainCrossing
+from litex.soc.interconnect.csr_eventmanager import *
 
 from litex_boards.targets.lambdaconcept_ecpix5 import *
 
@@ -48,15 +52,39 @@ def add_eurorack_pmod(soc, sample_rate=48000):
     eurorack_pmod_pads = soc.platform.request("eurorack_pmod_p0")
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
 
-    # Pipe inputs straight to outputs.
+    # Simulate all outputs looped back to inputs on the PMOD I2S
+    soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
+
+    # CDC
+    cdc_in0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="clk_fs", cd_to="sys")
+    cdc_out0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="sys", cd_to="clk_fs")
+
+    # CDC <-> I2S (clk_fs domain)
     soc.comb += [
-        eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
-        eurorack_pmod.cal_out1.eq(eurorack_pmod.cal_in1),
-        eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
-        eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
+        # ADC -> CDC
+        cdc_in0.sink.valid.eq(1),
+        #cdc_in0.sink.payload.data.eq(0xDEADBEEF),
+        cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
+        # CDC -> DAC
+        cdc_out0.source.ready.eq(1),
+        eurorack_pmod.cal_out0.eq(cdc_out0.source.payload.data)
     ]
 
+    # DMA master (ADC -> CDC -> Wishbone)
+    soc.submodules.dma_writer0 = WishboneDMAWriter(wishbone.Interface(), endianness="big", with_csr=True)
+    soc.bus.add_master(master=soc.dma_writer0.bus)
+    soc.comb += cdc_in0.source.connect(soc.dma_writer0.sink)
+    soc.irq.add("dma_writer0", use_loc_if_exists=True)
+
+    # DMA master (Wishbone -> CDC -> DAC)
+    soc.submodules.dma_reader0 = WishboneDMAReader(wishbone.Interface(), endianness="big", with_csr=True)
+    soc.bus.add_master(master=soc.dma_reader0.bus)
+    soc.comb += soc.dma_reader0.source.connect(cdc_out0.sink)
+    soc.irq.add("dma_reader0", use_loc_if_exists=True)
+
     soc.add_module("eurorack_pmod0", eurorack_pmod)
+    soc.add_module("cdc_in0", cdc_in0)
+    soc.add_module("cdc_out0", cdc_out0)
 
 def main():
     from litex.build.parser import LiteXArgumentParser
