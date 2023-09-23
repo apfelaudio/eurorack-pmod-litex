@@ -9,6 +9,7 @@ use litex_pac as pac;
 use riscv_rt::entry;
 use riscv;
 use core::arch::asm;
+use micromath::F32Ext;
 
 mod log;
 use log::*;
@@ -29,8 +30,8 @@ const BUF_SZ_BYTES: usize = BUF_SZ_WORDS * 4;
 static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
-static mut BUF_IN_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
-static mut BUF_OUT_CP: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
+static mut BUF_IN_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
+static mut BUF_OUT_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
 #[entry]
 fn main() -> ! {
@@ -45,7 +46,7 @@ fn main() -> ! {
 
     for i in 0..BUF_SZ_WORDS {
         unsafe {
-            BUF_OUT_CP[i] = 256*((i as u32));
+            BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
         }
     }
 
@@ -81,7 +82,6 @@ fn main() -> ! {
     }
 
     loop {
-        /*
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
@@ -91,7 +91,6 @@ fn main() -> ! {
             }
         }
         timer.delay_ms(500u32);
-        */
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);

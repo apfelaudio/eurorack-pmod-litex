@@ -57,18 +57,10 @@ fn default_handler() {
             asm!("fence iorw, iorw");
         }
 
-        let proc = |x: i32| {
-            if (x > 8000) {
-                8000
-            } else {
-                x
-            }
-        };
-
         if offset as usize == BUF_SZ_WORDS/2 {
             for i in 0..(BUF_SZ_WORDS/2) {
                 unsafe {
-                    BUF_IN_CP[i] = proc(BUF_IN[i] as i32) as u32;
+                    BUF_IN_CP[i] = BUF_IN[i] as i16;
                 }
             }
         }
@@ -76,7 +68,7 @@ fn default_handler() {
         if offset as usize== (BUF_SZ_WORDS-1) {
             for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
                 unsafe {
-                    BUF_IN_CP[i] = proc(BUF_IN[i] as i32) as u32;
+                    BUF_IN_CP[i] = BUF_IN[i] as i16;
                 }
             }
         }
@@ -97,7 +89,7 @@ fn default_handler() {
         if offset as usize == BUF_SZ_WORDS/2 {
             for i in 0..(BUF_SZ_WORDS/2) {
                 unsafe {
-                    BUF_OUT[i] = BUF_IN_CP[i];
+                    BUF_OUT[i] = BUF_OUT_CP[i] as u32;
                 }
             }
         }
@@ -105,7 +97,7 @@ fn default_handler() {
         if offset as usize == (BUF_SZ_WORDS-1) {
             for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
                 unsafe {
-                    BUF_OUT[i] = BUF_IN_CP[i];
+                    BUF_OUT[i] = BUF_OUT_CP[i] as u32;
                 }
             }
         }
