@@ -35,6 +35,94 @@ _io_eurorack_pmod = [
     ),
 ]
 
+class DMARouter(LiteXModule):
+
+    def __init__(self, soc):
+
+        self.sink   = stream.Endpoint([("in0", 16),
+                                       ("in1", 16),
+                                       ("in2", 16),
+                                       ("in3", 16)])
+
+        self.source   = stream.Endpoint([("out0", 16),
+                                         ("out1", 16),
+                                         ("out2", 16),
+                                         ("out3", 16)])
+
+        self.writer_bus0 = wishbone.Interface()
+        self.reader_bus0 = wishbone.Interface()
+        self.submodules.dma_writer0 = WishboneDMAWriter(self.writer_bus0, endianness="big")
+        self.submodules.dma_reader0 = WishboneDMAReader(self.reader_bus0, endianness="big")
+
+    def add_csr(self):
+        # CSR
+        self._base_writer   = CSRStorage(32)
+        self._base_reader   = CSRStorage(32)
+        self._length_words  = CSRStorage(32, reset=0)
+        self._offset_words  = CSRStatus(32)
+        self._enable        = CSRStorage(reset=0)
+
+        # Local signals
+        shift         = log2_int(self.writer_bus0.data_width//8)
+        base_writer   = Signal(self.writer_bus0.adr_width)
+        base_reader   = Signal(self.writer_bus0.adr_width)
+        offset_words  = Signal(self.writer_bus0.adr_width)
+        length_words  = Signal(self.writer_bus0.adr_width)
+
+        self.comb += [
+            base_writer.eq(self._base_writer.storage[shift:]),
+            base_reader.eq(self._base_writer.storage[shift:]),
+            length_words.eq(self._length_words.storage),
+            self._offset_words.status.eq(offset_words),
+        ]
+
+        # IRQ logic
+        self.ev = EventManager()
+        self.ev.half = EventSourceProcess(edge="rising")
+        self.comb += [
+            self.ev.half.trigger.eq(
+                (offset_words == (length_words >> 1)) |
+                (offset_words == (length_words - 2))),
+        ]
+        self.ev.finalize()
+
+        # DMA FSM
+
+        fsm = FSM(reset_state="IDLE")
+        fsm = ResetInserter()(fsm)
+        self.submodules += fsm
+        self.comb += fsm.reset.eq(~self._enable.storage)
+
+        fsm.act("IDLE",
+            NextValue(offset_words, 0),
+            NextState("EVEN"),
+        )
+
+        fsm.act("EVEN",
+            self.dma_writer0.sink.valid.eq(self.sink.valid),
+            self.dma_writer0.sink.address.eq(base_writer + offset_words),
+            self.dma_writer0.sink.data.eq((self.sink.in1 << 16) | self.sink.in0),
+            self.sink.ready.eq(self.dma_writer0.sink.ready),
+            If(self.sink.valid & self.sink.ready,
+                NextValue(offset_words, offset_words + 1),
+                NextState("ODD"),
+            )
+        )
+
+        fsm.act("ODD",
+            self.dma_writer0.sink.valid.eq(self.sink.valid),
+            self.dma_writer0.sink.address.eq(base_writer + offset_words),
+            self.dma_writer0.sink.data.eq((self.sink.in3 << 16) | self.sink.in2),
+            self.sink.ready.eq(0),
+            If(self.sink.valid & self.dma_writer0.sink.ready,
+                NextValue(offset_words, offset_words + 1),
+                If((offset_words + 1) == length_words,
+                    NextValue(offset_words, 0)
+                ),
+                NextState("EVEN"),
+            )
+        )
+
 def add_eurorack_pmod(soc):
     soc.platform.add_extension(_io_eurorack_pmod)
 
@@ -52,31 +140,49 @@ def add_eurorack_pmod(soc):
     soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
 
     # CDC
-    cdc_in0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="clk_fs", cd_to="sys")
-    cdc_out0 = ClockDomainCrossing(layout=[("data", 32)], cd_from="sys", cd_to="clk_fs")
+    cdc_in0 = ClockDomainCrossing(
+            layout=[("in0", 16),
+                    ("in1", 16),
+                    ("in2", 16),
+                    ("in3", 16)],
+            cd_from="clk_fs",
+            cd_to="sys"
+        )
+    cdc_out0 = ClockDomainCrossing(
+            layout=[("out0", 16),
+                    ("out1", 16),
+                    ("out2", 16),
+                    ("out3", 16)],
+            cd_from="sys",
+            cd_to="clk_fs"
+        )
 
     # CDC <-> I2S (clk_fs domain)
     soc.comb += [
         # ADC -> CDC
         cdc_in0.sink.valid.eq(1),
-        #cdc_in0.sink.payload.data.eq(0xDEADBEEF),
-        cdc_in0.sink.payload.data.eq(eurorack_pmod.cal_in0),
+        cdc_in0.sink.in0.eq(0xDEAD),
+        cdc_in0.sink.in1.eq(0xBEEF),
+        cdc_in0.sink.in2.eq(0xFEED),
+        cdc_in0.sink.in3.eq(0x8008),
+        #cdc_in0.sink.data.eq(eurorack_pmod.cal_in0),
         # CDC -> DAC
         cdc_out0.source.ready.eq(1),
-        eurorack_pmod.cal_out0.eq(cdc_out0.source.payload.data)
+        eurorack_pmod.cal_out0.eq(cdc_out0.source.out0),
+        eurorack_pmod.cal_out1.eq(cdc_out0.source.out1),
+        eurorack_pmod.cal_out2.eq(cdc_out0.source.out2),
+        eurorack_pmod.cal_out3.eq(cdc_out0.source.out3),
     ]
 
-    # DMA master (ADC -> CDC -> Wishbone)
-    soc.submodules.dma_writer0 = WishboneDMAWriter(wishbone.Interface(), endianness="big", with_csr=True)
-    soc.bus.add_master(master=soc.dma_writer0.bus)
-    soc.comb += cdc_in0.source.connect(soc.dma_writer0.sink)
-    soc.irq.add("dma_writer0", use_loc_if_exists=True)
-
-    # DMA master (Wishbone -> CDC -> DAC)
-    soc.submodules.dma_reader0 = WishboneDMAReader(wishbone.Interface(), endianness="big", with_csr=True)
-    soc.bus.add_master(master=soc.dma_reader0.bus)
-    soc.comb += soc.dma_reader0.source.connect(cdc_out0.sink)
-    soc.irq.add("dma_reader0", use_loc_if_exists=True)
+    soc.submodules.dma_router0 = DMARouter(soc)
+    soc.dma_router0.add_csr()
+    soc.comb += [
+        #soc.dma_router0.source.connect(cdc_out0.sink),
+        cdc_in0.source.connect(soc.dma_router0.sink),
+    ]
+    soc.bus.add_master(master=soc.dma_router0.dma_writer0.bus)
+    soc.bus.add_master(master=soc.dma_router0.dma_reader0.bus)
+    soc.irq.add("dma_router0", use_loc_if_exists=True)
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
     soc.add_module("cdc_in0", cdc_in0)

@@ -24,18 +24,15 @@ litex_hal::timer! {
     Timer: litex_pac::TIMER0,
 }
 
-const BUF_SZ_WORDS: usize = 128;
-const BUF_SZ_BYTES: usize = BUF_SZ_WORDS * 4;
+const N_CHANNELS: usize = 4;
+const BUF_SZ_WORDS: usize = 16;
+const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 
 static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
-static mut BUF_IN_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
-static mut BUF_IN_NEW_LO: bool = false;
-static mut BUF_IN_NEW_HI: bool = false;
-static mut BUF_OUT_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
-static mut BUF_OUT_SENT_LO: bool = false;
-static mut BUF_OUT_SENT_HI: bool = false;
+static mut BUF_IN_CP: [i16; BUF_SZ_SAMPLES] = [0; BUF_SZ_SAMPLES];
+static mut BUF_OUT_CP: [i16; BUF_SZ_SAMPLES] = [0; BUF_SZ_SAMPLES];
 
 #[entry]
 fn main() -> ! {
@@ -48,30 +45,20 @@ fn main() -> ! {
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
+    /*
     for i in 0..BUF_SZ_WORDS {
         unsafe {
             BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
         }
     }
+    */
 
     unsafe {
-        peripherals.DMA_READER0.base0.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
-        peripherals.DMA_READER0.length.write(|w| w.bits(BUF_SZ_BYTES as u32));
-        peripherals.DMA_READER0.loop_.write(|w| w.bits(1u32));
-
-        peripherals.DMA_WRITER0.base0.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
-        peripherals.DMA_WRITER0.length.write(|w| w.bits(BUF_SZ_BYTES as u32));
-        peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
-
-        asm!("fence iorw, iorw");
-
-        peripherals.DMA_READER0.enable.write(|w| w.bits(1u32));
-        peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
-
-        asm!("fence iorw, iorw");
-
-        peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
-        peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
+        peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
+        peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
+        peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
+        peripherals.DMA_ROUTER0.enable.write(|w| w.bits(1u32));
+        peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
 
         asm!(
             "li {x}, 0xfff",
@@ -82,7 +69,7 @@ fn main() -> ! {
         // VexRiscv // 0xBC0 == machineMaskCsrId // GenCoreDefault.scala
         // 0x4 + 0x8 = 0xC => IRQ 2 & IRQ 3 (dmaw.half, dmar.half)
         asm!(
-            "li {x}, 0xC",
+            "li {x}, 0x4",
             "csrw 0xBC0, {x}",
             x = out(reg) _,
             );
@@ -91,6 +78,7 @@ fn main() -> ! {
     }
 
     loop {
+        /*
         let proc = |s| {
             if (s > 8000) {
                 8000
@@ -117,17 +105,16 @@ fn main() -> ! {
                 BUF_OUT_SENT_HI = false;
             }
         }
-        /*
+        */
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
-            for i in 0..BUF_SZ_WORDS {
+            for i in 0..BUF_SZ_SAMPLES {
                 log::info!("{:x}@{:x}", i, BUF_IN_CP[i]);
 
             }
         }
-        timer.delay_ms(500u32);
-        */
+        timer.delay_ms(10u32);
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);

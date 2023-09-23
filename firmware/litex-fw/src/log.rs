@@ -51,66 +51,35 @@ fn default_handler() {
     }
 
     let peripherals = unsafe { pac::Peripherals::steal() };
-    if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
-        let offset = peripherals.DMA_WRITER0.offset.read().bits();
+    if (pending & (1u32 << pac::Interrupt::DMA_ROUTER0 as u32)) != 0 {
+        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
 
         unsafe {
             asm!("fence iorw, iorw");
         }
 
-        if offset as usize == BUF_SZ_WORDS/2 {
+        if offset as usize == ((BUF_SZ_WORDS/2)+1) {
             for i in 0..(BUF_SZ_WORDS/2) {
                 unsafe {
-                    BUF_IN_CP[i] = BUF_IN[i] as i16;
+                    BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
+                    BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
                 }
             }
-            unsafe { BUF_IN_NEW_LO = true; }
-        }
-
-        if offset as usize== (BUF_SZ_WORDS-1) {
-            for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
-                unsafe {
-                    BUF_IN_CP[i] = BUF_IN[i] as i16;
-                }
-            }
-            unsafe { BUF_IN_NEW_HI = true; }
-        }
-
-
-        let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
-        unsafe {
-            peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
-        }
-    }
-
-    if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
-        let offset = peripherals.DMA_READER0.offset.read().bits();
-
-        unsafe {
-            asm!("fence iorw, iorw");
-        }
-
-        if offset as usize == BUF_SZ_WORDS/2 {
-            for i in 0..(BUF_SZ_WORDS/2) {
-                unsafe {
-                    BUF_OUT[i] = BUF_OUT_CP[i] as u32;
-                }
-            }
-            unsafe { BUF_OUT_SENT_LO = true; }
         }
 
         if offset as usize == (BUF_SZ_WORDS-1) {
             for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
                 unsafe {
-                    BUF_OUT[i] = BUF_OUT_CP[i] as u32;
+                    BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
+                    BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
                 }
             }
-            unsafe { BUF_OUT_SENT_HI = true; }
         }
 
-        let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();
+
+        let pending_type = peripherals.DMA_ROUTER0.ev_pending.read().bits();
         unsafe {
-            peripherals.DMA_READER0.ev_pending.write(|w| w.bits(pending_type));
+            peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_type));
         }
     }
 }
