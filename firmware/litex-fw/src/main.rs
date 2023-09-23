@@ -8,9 +8,6 @@ use litex_hal::uart::UartError;
 use litex_pac as pac;
 use riscv_rt::entry;
 use riscv;
-use core::sync::atomic::fence;
-use core::sync::atomic::compiler_fence;
-use core::sync::atomic::Ordering;
 use core::arch::asm;
 
 mod log;
@@ -47,7 +44,7 @@ fn main() -> ! {
 
     for i in 0..BUF_SZ_WORDS {
         unsafe {
-            BUF_OUT[i] = i as u32;
+            BUF_OUT[i] = 256*((i as u32));
         }
     }
 

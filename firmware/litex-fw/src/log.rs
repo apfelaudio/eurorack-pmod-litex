@@ -76,7 +76,7 @@ fn default_handler() {
         if offset == 0x1f {
             for i in 0x10..0x20 {
                 unsafe {
-                    BUF_IN_CP[i] = *buf.add(i+0x10);
+                    BUF_IN_CP[i] = *buf.add(i);
                 }
             }
         }
