@@ -68,6 +68,7 @@ class DMARouter(LiteXModule):
         base_reader   = Signal(self.writer_bus0.adr_width)
         offset_words  = Signal(self.writer_bus0.adr_width)
         length_words  = Signal(self.writer_bus0.adr_width)
+        offset_words_r= Signal(self.writer_bus0.adr_width)
 
         self.comb += [
             base_writer.eq(self._base_writer.storage[shift:]),
@@ -86,19 +87,19 @@ class DMARouter(LiteXModule):
         ]
         self.ev.finalize()
 
-        # DMA FSM
+        # DMA FSM (write side)
 
-        fsm = FSM(reset_state="IDLE")
-        fsm = ResetInserter()(fsm)
-        self.submodules += fsm
-        self.comb += fsm.reset.eq(~self._enable.storage)
+        fsm_write = FSM(reset_state="IDLE")
+        fsm_write = ResetInserter()(fsm_write)
+        self.submodules += fsm_write
+        self.comb += fsm_write.reset.eq(~self._enable.storage)
 
-        fsm.act("IDLE",
+        fsm_write.act("IDLE",
             NextValue(offset_words, 0),
             NextState("EVEN"),
         )
 
-        fsm.act("EVEN",
+        fsm_write.act("EVEN",
             self.dma_writer0.sink.valid.eq(self.sink.valid),
             self.dma_writer0.sink.address.eq(base_writer + offset_words),
             self.dma_writer0.sink.data.eq((self.sink.in1 << 16) | self.sink.in0),
@@ -109,7 +110,7 @@ class DMARouter(LiteXModule):
             )
         )
 
-        fsm.act("ODD",
+        fsm_write.act("ODD",
             self.dma_writer0.sink.valid.eq(self.sink.valid),
             self.dma_writer0.sink.address.eq(base_writer + offset_words),
             self.dma_writer0.sink.data.eq((self.sink.in3 << 16) | self.sink.in2),
@@ -122,6 +123,61 @@ class DMARouter(LiteXModule):
                 NextState("EVEN"),
             )
         )
+
+        # DMA FSM (read side)
+
+        fsm_read = FSM(reset_state="IDLE")
+        fsm_read = ResetInserter()(fsm_read)
+        self.submodules += fsm_read
+        self.comb += fsm_read.reset.eq(~self._enable.storage)
+
+        fsm_read.act("IDLE",
+            NextValue(offset_words_r, 0),
+            NextState("EVEN"),
+        )
+
+        fsm_read.act("EVEN",
+            self.source.valid.eq(0),
+            self.dma_reader0.sink.valid.eq(1),
+            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
+            If(self.dma_reader0.sink.ready,
+                NextValue(offset_words_r, offset_words_r + 1),
+                NextState("ODD"),
+            ),
+        )
+
+        fsm_read.act("ODD",
+            self.dma_reader0.sink.valid.eq(1),
+            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
+            If(self.dma_reader0.sink.ready,
+                NextValue(offset_words_r, offset_words_r + 1),
+                If((offset_words_r + 1) == length_words,
+                    NextValue(offset_words_r, 0)
+                ),
+                NextState("WAIT1"),
+            ),
+        )
+
+        fsm_read.act("WAIT1",
+            NextValue(self.dma_reader0.source.ready, 1),
+            # Not sure about this...
+            If(self.dma_reader0.source.valid,
+                NextValue(self.source.out0, self.dma_reader0.source.data[:16]),
+                NextValue(self.source.out1, self.dma_reader0.source.data[16:32]),
+                NextState("WAIT2"),
+            )
+         )
+
+        fsm_read.act("WAIT2",
+            # Not sure about this...
+            If(self.source.ready,
+                self.source.valid.eq(1),
+                NextValue(self.dma_reader0.source.ready, 0),
+                NextValue(self.source.out2, self.dma_reader0.source.data[:16]),
+                NextValue(self.source.out3, self.dma_reader0.source.data[16:32]),
+                NextState("EVEN"),
+            )
+         )
 
 def add_eurorack_pmod(soc):
     soc.platform.add_extension(_io_eurorack_pmod)
@@ -177,7 +233,7 @@ def add_eurorack_pmod(soc):
     soc.submodules.dma_router0 = DMARouter(soc)
     soc.dma_router0.add_csr()
     soc.comb += [
-        #soc.dma_router0.source.connect(cdc_out0.sink),
+        soc.dma_router0.source.connect(cdc_out0.sink),
         cdc_in0.source.connect(soc.dma_router0.sink),
     ]
     soc.bus.add_master(master=soc.dma_router0.dma_writer0.bus)

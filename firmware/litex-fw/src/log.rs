@@ -63,6 +63,8 @@ fn default_handler() {
                 unsafe {
                     BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
                     BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
+                    BUF_OUT[i]       = BUF_OUT_CP[2*i] as u32;
+                    BUF_OUT[i]      |= (BUF_OUT_CP[2*i+1] as u32) << 16;
                 }
             }
         }
@@ -72,6 +74,8 @@ fn default_handler() {
                 unsafe {
                     BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
                     BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
+                    BUF_OUT[i]       = BUF_OUT_CP[2*i] as u32;
+                    BUF_OUT[i]      |= (BUF_OUT_CP[2*i+1] as u32) << 16;
                 }
             }
         }

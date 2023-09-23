@@ -45,13 +45,11 @@ fn main() -> ! {
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
-    /*
-    for i in 0..BUF_SZ_WORDS {
+    for i in 0..BUF_SZ_SAMPLES {
         unsafe {
             BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
         }
     }
-    */
 
     unsafe {
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
