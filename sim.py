@@ -76,6 +76,7 @@ def add_eurorack_pmod(soc):
     soc.submodules.dma_reader0 = WishboneDMAReader(wishbone.Interface(), endianness="big", with_csr=True)
     soc.bus.add_master(master=soc.dma_reader0.bus)
     soc.comb += soc.dma_reader0.source.connect(cdc_out0.sink)
+    soc.irq.add("dma_reader0", use_loc_if_exists=True)
 
     soc.add_module("eurorack_pmod0", eurorack_pmod)
     soc.add_module("cdc_in0", cdc_in0)

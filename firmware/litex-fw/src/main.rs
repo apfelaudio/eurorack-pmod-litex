@@ -61,8 +61,8 @@ fn main() -> ! {
         peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
         peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
 
+        peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
         peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
-        peripherals.DMA_WRITER0.ev_enable.write(|w| w.done().bit(true));
 
         asm!(
             "li {x}, 0xfff",
@@ -70,8 +70,10 @@ fn main() -> ! {
             x = out(reg) _,
             );
 
+        // VexRiscv // 0xBC0 == machineMaskCsrId // GenCoreDefault.scala
+        // 0x4 + 0x8 = 0xC => IRQ 2 & IRQ 3 (dmaw.half, dmar.half)
         asm!(
-            "li {x}, 0x4",
+            "li {x}, 0xC",
             "csrw 0xBC0, {x}",
             x = out(reg) _,
             );

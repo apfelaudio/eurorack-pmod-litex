@@ -38,18 +38,27 @@ fn default_handler() {
 
     let mut pending: u32 = 0;
     unsafe {
+    // VexRiscv // 0xFC0 == machinePendingsCsrId // GenCoreDefault.scala
     asm!(
         "csrr {x}, 0xFC0",
         x = inout(reg) pending,
         );
     }
 
+    let peripherals = unsafe { pac::Peripherals::steal() };
     if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
-        let peripherals = unsafe { pac::Peripherals::steal() };
         let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
-        info!("dmaw0 {:x}", pending_type);
+        let offset = peripherals.DMA_WRITER0.offset.read().bits();
+        info!("dmaw0 {:x} {:x}", pending_type, offset);
         unsafe {
             peripherals.DMA_WRITER0.ev_pending.write(|w| w.bits(pending_type));
+        }
+    } else if (pending & (1u32 << pac::Interrupt::DMA_READER0 as u32)) != 0 {
+        let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();
+        let offset = peripherals.DMA_READER0.offset.read().bits();
+        info!("dmar0 {:x} {:x}", pending_type, offset);
+        unsafe {
+            peripherals.DMA_READER0.ev_pending.write(|w| w.bits(pending_type));
         }
     } else {
         info!("unknown irq!!");
