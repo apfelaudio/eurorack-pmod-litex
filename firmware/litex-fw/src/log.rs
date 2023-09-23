@@ -7,6 +7,7 @@ use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use core::arch::asm;
 use crate::{BUF_IN, BUF_IN_CP, BUF_OUT, BUF_OUT_CP, BUF_SZ_WORDS};
+use crate::*;
 use core::sync::atomic::fence;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
@@ -63,6 +64,7 @@ fn default_handler() {
                     BUF_IN_CP[i] = BUF_IN[i] as i16;
                 }
             }
+            unsafe { BUF_IN_NEW_LO = true; }
         }
 
         if offset as usize== (BUF_SZ_WORDS-1) {
@@ -71,7 +73,9 @@ fn default_handler() {
                     BUF_IN_CP[i] = BUF_IN[i] as i16;
                 }
             }
+            unsafe { BUF_IN_NEW_HI = true; }
         }
+
 
         let pending_type = peripherals.DMA_WRITER0.ev_pending.read().bits();
         unsafe {
@@ -92,6 +96,7 @@ fn default_handler() {
                     BUF_OUT[i] = BUF_OUT_CP[i] as u32;
                 }
             }
+            unsafe { BUF_OUT_SENT_LO = true; }
         }
 
         if offset as usize == (BUF_SZ_WORDS-1) {
@@ -100,6 +105,7 @@ fn default_handler() {
                     BUF_OUT[i] = BUF_OUT_CP[i] as u32;
                 }
             }
+            unsafe { BUF_OUT_SENT_HI = true; }
         }
 
         let pending_type = peripherals.DMA_READER0.ev_pending.read().bits();

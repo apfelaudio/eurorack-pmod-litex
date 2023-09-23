@@ -31,7 +31,11 @@ static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
 
 static mut BUF_IN_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
+static mut BUF_IN_NEW_LO: bool = false;
+static mut BUF_IN_NEW_HI: bool = false;
 static mut BUF_OUT_CP: [i16; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
+static mut BUF_OUT_SENT_LO: bool = false;
+static mut BUF_OUT_SENT_HI: bool = false;
 
 #[entry]
 fn main() -> ! {
@@ -54,12 +58,17 @@ fn main() -> ! {
         peripherals.DMA_READER0.base0.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
         peripherals.DMA_READER0.length.write(|w| w.bits(BUF_SZ_BYTES as u32));
         peripherals.DMA_READER0.loop_.write(|w| w.bits(1u32));
-        peripherals.DMA_READER0.enable.write(|w| w.bits(1u32));
 
         peripherals.DMA_WRITER0.base0.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_WRITER0.length.write(|w| w.bits(BUF_SZ_BYTES as u32));
         peripherals.DMA_WRITER0.loop_.write(|w| w.bits(1u32));
+
+        asm!("fence iorw, iorw");
+
+        peripherals.DMA_READER0.enable.write(|w| w.bits(1u32));
         peripherals.DMA_WRITER0.enable.write(|w| w.bits(1u32));
+
+        asm!("fence iorw, iorw");
 
         peripherals.DMA_READER0.ev_enable.write(|w| w.half().bit(true));
         peripherals.DMA_WRITER0.ev_enable.write(|w| w.half().bit(true));
@@ -82,6 +91,33 @@ fn main() -> ! {
     }
 
     loop {
+        let proc = |s| {
+            if (s > 8000) {
+                8000
+            } else if (s < -8000) {
+                -8000
+            } else {
+                s
+            }
+        };
+        unsafe {
+            asm!("fence iorw, iorw");
+            if BUF_OUT_SENT_LO && BUF_IN_NEW_LO {
+                for i in 0..(BUF_SZ_WORDS/2) {
+                    BUF_OUT_CP[i] = proc(BUF_IN_CP[i]);
+                }
+                BUF_IN_NEW_LO = false;
+                BUF_OUT_SENT_LO = false;
+            }
+            if BUF_OUT_SENT_HI && BUF_IN_NEW_HI {
+                for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
+                    BUF_OUT_CP[i] = proc(BUF_IN_CP[i]);
+                }
+                BUF_IN_NEW_HI = false;
+                BUF_OUT_SENT_HI = false;
+            }
+        }
+        /*
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
@@ -91,6 +127,7 @@ fn main() -> ! {
             }
         }
         timer.delay_ms(500u32);
+        */
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);
