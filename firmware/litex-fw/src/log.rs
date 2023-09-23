@@ -53,6 +53,11 @@ fn default_handler() {
     if (pending & (1u32 << pac::Interrupt::DMA_WRITER0 as u32)) != 0 {
         let offset = peripherals.DMA_WRITER0.offset.read().bits();
         //info!("dmaw0 {:x} {:x}", pending_type, offset);
+        unsafe {
+        asm!(
+            "fence iorw, iorw",
+            );
+        }
 
         if offset == 0x10 {
             for i in 0..0x10 {
