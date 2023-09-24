@@ -13,6 +13,7 @@ use micromath::F32Ext;
 use aligned_array::{Aligned, A4};
 
 mod log;
+mod libvult;
 use log::*;
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 50_000_000;

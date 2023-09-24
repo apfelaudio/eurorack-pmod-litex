@@ -35,11 +35,7 @@ NOTE: The code for the fixed-point operations is based on the project:
 #include <stdint.h>
 #include <stdlib.h>
 
-#ifdef _MSC_VER
-#define static_inline static __inline
-#else
-#define static_inline static inline
-#endif
+#define static_inline
 
 typedef int32_t fix16_t;
 
