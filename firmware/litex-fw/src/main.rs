@@ -27,7 +27,7 @@ litex_hal::timer! {
 }
 
 const N_CHANNELS: usize = 4;
-const BUF_SZ_WORDS: usize = 256;
+const BUF_SZ_WORDS: usize = 512;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
