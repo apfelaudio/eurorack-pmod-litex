@@ -19,6 +19,8 @@ litex_hal::uart! {
 
 static mut UART_WRITER: Option<Uart> = None;
 
+static mut VULT: Option<libvult::DspProcessType> = None;
+
 #[panic_handler]
 fn panic(panic_info: &PanicInfo) -> ! {
     if let Some(location) = panic_info.location() {
@@ -59,20 +61,31 @@ fn default_handler() {
             asm!("fence iorw, iorw");
         }
 
-        if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-            for i in 0..(BUF_SZ_SAMPLES/2) {
-                unsafe {
-                    BUF_OUT[i] = libvult::process(BUF_IN[i]);
-                }
-            }
-        }
+        unsafe {
 
-        if offset as usize == (BUF_SZ_WORDS-1) {
-            for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
-                unsafe {
-                    BUF_OUT[i] = libvult::process(BUF_IN[i]);
+            if let Some(ref mut vult) = VULT {
+
+                if offset as usize == ((BUF_SZ_WORDS/2)+1) {
+                    for i in 0..(BUF_SZ_SAMPLES/2) {
+                        if i % 4 == 0 {
+                            BUF_OUT[i] = vult.process(BUF_IN[i]);
+                        } else {
+                            BUF_OUT[i] = 0;
+                        }
+                    }
+                }
+
+                if offset as usize == (BUF_SZ_WORDS-1) {
+                    for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
+                        if i % 4 == 0 {
+                            BUF_OUT[i] = vult.process(BUF_IN[i]);
+                        } else {
+                            BUF_OUT[i] = 0;
+                        }
+                    }
                 }
             }
+
         }
 
 
@@ -99,6 +112,7 @@ pub fn init(uart: pac::UART) {
                 .bwrite_all(b"UART logger up!\n")
                 .ok();
         }
+        VULT = Some(libvult::DspProcessType::new());
     }
 }
 

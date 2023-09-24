@@ -10,7 +10,7 @@ fn main() {
 
     println!("cargo:rustc-link-search=native=../libvult");
     println!("cargo:rustc-link-lib=static=vult");
-    println!("cargo:rerun-if-changed=../libvult/gen/dsp.h");
+    println!("cargo:rerun-if-changed=../libvult/gen/dsp.hpp");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -18,12 +18,12 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("../libvult/gen/dsp.h")
+        .header("../libvult/gen/dsp.hpp")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .use_core()
-        .allowlist_file("../libvult/gen/dsp.h")
+        .allowlist_file("../libvult/gen/dsp.hpp")
         .clang_arg("-I../libvult/runtime")
         .clang_arg("-I../../build/lambdaconcept_ecpix5/software/libc")
         .clang_arg("-I../../deps/pythondata-software-picolibc/pythondata_software_picolibc/data/newlib/libc/include")
