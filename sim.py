@@ -72,7 +72,7 @@ class DMARouter(LiteXModule):
 
         self.comb += [
             base_writer.eq(self._base_writer.storage[shift:]),
-            base_reader.eq(self._base_writer.storage[shift:]),
+            base_reader.eq(self._base_reader.storage[shift:]),
             length_words.eq(self._length_words.storage),
             self._offset_words.status.eq(offset_words),
         ]
@@ -227,11 +227,14 @@ def add_eurorack_pmod(soc):
     soc.comb += [
         # ADC -> CDC
         cdc_in0.sink.valid.eq(1),
-        cdc_in0.sink.in0.eq(0xDEAD),
-        cdc_in0.sink.in1.eq(0xBEEF),
-        cdc_in0.sink.in2.eq(0xFEED),
-        cdc_in0.sink.in3.eq(0x8008),
-        #cdc_in0.sink.data.eq(eurorack_pmod.cal_in0),
+        #cdc_in0.sink.in0.eq(0xDEAD),
+        #cdc_in0.sink.in1.eq(0xBEEF),
+        #cdc_in0.sink.in2.eq(0xFEED),
+        #cdc_in0.sink.in3.eq(0x8008),
+        cdc_in0.sink.in0.eq(eurorack_pmod.cal_in0),
+        cdc_in0.sink.in1.eq(eurorack_pmod.cal_in1),
+        cdc_in0.sink.in2.eq(eurorack_pmod.cal_in2),
+        cdc_in0.sink.in3.eq(eurorack_pmod.cal_in3),
         # CDC -> DAC
         cdc_out0.source.ready.eq(1),
         eurorack_pmod.cal_out0.eq(cdc_out0.source.out0),

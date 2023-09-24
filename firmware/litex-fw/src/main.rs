@@ -47,7 +47,8 @@ fn main() -> ! {
 
     for i in 0..BUF_SZ_SAMPLES {
         unsafe {
-            BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
+            //BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
+            BUF_OUT_CP[i] = (i*256) as i16;
         }
     }
 
