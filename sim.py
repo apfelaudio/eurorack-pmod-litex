@@ -203,7 +203,7 @@ def add_eurorack_pmod(soc):
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, sim=True)
 
     # Simulate all outputs looped back to inputs on the PMOD I2S
-    soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
+    #soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
 
     # CDC
     cdc_in0 = ClockDomainCrossing(

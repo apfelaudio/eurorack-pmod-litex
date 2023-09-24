@@ -26,7 +26,7 @@ litex_hal::timer! {
 }
 
 const N_CHANNELS: usize = 4;
-const BUF_SZ_WORDS: usize = 16;
+const BUF_SZ_WORDS: usize = 64;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
@@ -48,7 +48,7 @@ fn main() -> ! {
     for i in 0..BUF_SZ_SAMPLES {
         unsafe {
             //BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
-            BUF_OUT[i] = (256 + (i*256)) as i16;
+            BUF_OUT[i] = (i*256) as i16;
         }
     }
 
@@ -105,6 +105,7 @@ fn main() -> ! {
             }
         }
         */
+        /*
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
@@ -114,6 +115,7 @@ fn main() -> ! {
             }
         }
         timer.delay_ms(10u32);
+        */
         /*
         log::info!("jack_detect {:x}", peripherals.EURORACK_PMOD0.csr_jack.read().bits() as u8);
         log::info!("input0 {}", peripherals.EURORACK_PMOD0.csr_cal_in0.read().bits() as i16);

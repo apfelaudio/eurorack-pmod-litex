@@ -61,7 +61,7 @@ fn default_handler() {
         if offset as usize == ((BUF_SZ_WORDS/2)+1) {
             for i in 0..(BUF_SZ_SAMPLES/2) {
                 unsafe {
-                    //BUF_OUT[i] = BUF_IN[i];
+                    BUF_OUT[i] = BUF_IN[i];
                 }
             }
         }
@@ -69,7 +69,7 @@ fn default_handler() {
         if offset as usize == (BUF_SZ_WORDS-1) {
             for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
                 unsafe {
-                    //BUF_OUT[i] = BUF_IN[i];
+                    BUF_OUT[i] = BUF_IN[i];
                 }
             }
         }
