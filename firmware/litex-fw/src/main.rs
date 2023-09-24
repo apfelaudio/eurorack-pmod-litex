@@ -26,7 +26,7 @@ litex_hal::timer! {
 }
 
 const N_CHANNELS: usize = 4;
-const BUF_SZ_WORDS: usize = 64;
+const BUF_SZ_WORDS: usize = 256;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
@@ -108,7 +108,7 @@ fn main() -> ! {
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
-            for i in 0..BUF_SZ_SAMPLES {
+            for i in 0..4 {
                 log::info!("{:x}@{:x}", i, BUF_IN[i]);
 
             }
