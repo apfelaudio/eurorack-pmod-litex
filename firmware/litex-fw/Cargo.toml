@@ -14,3 +14,4 @@ litex-pac = { path = "../litex-pac", features = ["rt"] }
 micromath = "2.0.0"
 heapless = { version = "0.7.16", features = ["ufmt-impl"] }
 ufmt = "0.2.0"
+aligned-array = "1.0.1"

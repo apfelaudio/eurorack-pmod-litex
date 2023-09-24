@@ -10,6 +10,7 @@ use riscv_rt::entry;
 use riscv;
 use core::arch::asm;
 use micromath::F32Ext;
+use aligned_array::{Aligned, A4};
 
 mod log;
 use log::*;
@@ -28,11 +29,10 @@ const N_CHANNELS: usize = 4;
 const BUF_SZ_WORDS: usize = 16;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 
-static mut BUF_OUT: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
-static mut BUF_IN: [u32; BUF_SZ_WORDS] = [0; BUF_SZ_WORDS];
-
-static mut BUF_IN_CP: [i16; BUF_SZ_SAMPLES] = [0; BUF_SZ_SAMPLES];
-static mut BUF_OUT_CP: [i16; BUF_SZ_SAMPLES] = [0; BUF_SZ_SAMPLES];
+// MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
+// accessed by DMA that iterates across words!.
+static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
+static mut BUF_OUT: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 
 #[entry]
 fn main() -> ! {
@@ -48,7 +48,7 @@ fn main() -> ! {
     for i in 0..BUF_SZ_SAMPLES {
         unsafe {
             //BUF_OUT_CP[i] = (16000.0f32*f32::sin(2.0f32*3.141f32*i as f32 / BUF_SZ_WORDS as f32)) as i16;
-            BUF_OUT_CP[i] = (i*256) as i16;
+            BUF_OUT[i] = (256 + (i*256)) as i16;
         }
     }
 
@@ -109,7 +109,7 @@ fn main() -> ! {
         unsafe {
             asm!("fence iorw, iorw");
             for i in 0..BUF_SZ_SAMPLES {
-                log::info!("{:x}@{:x}", i, BUF_IN_CP[i]);
+                log::info!("{:x}@{:x}", i, BUF_IN[i]);
 
             }
         }

@@ -52,7 +52,7 @@ class DMARouter(LiteXModule):
         self.writer_bus0 = wishbone.Interface()
         self.reader_bus0 = wishbone.Interface()
         self.submodules.dma_writer0 = WishboneDMAWriter(self.writer_bus0, endianness="big")
-        self.submodules.dma_reader0 = WishboneDMAReader(self.reader_bus0, endianness="big")
+        self.submodules.dma_reader0 = WishboneDMAReader(self.reader_bus0, endianness="big", fifo_depth=1)
 
     def add_csr(self):
         # CSR
@@ -102,7 +102,7 @@ class DMARouter(LiteXModule):
         fsm_write.act("EVEN",
             self.dma_writer0.sink.valid.eq(self.sink.valid),
             self.dma_writer0.sink.address.eq(base_writer + offset_words),
-            self.dma_writer0.sink.data.eq((self.sink.in1 << 16) | self.sink.in0),
+            self.dma_writer0.sink.data.eq((self.sink.in3 << 16) | self.sink.in2),
             self.sink.ready.eq(self.dma_writer0.sink.ready),
             If(self.sink.valid & self.sink.ready,
                 NextValue(offset_words, offset_words + 1),
@@ -113,7 +113,7 @@ class DMARouter(LiteXModule):
         fsm_write.act("ODD",
             self.dma_writer0.sink.valid.eq(self.sink.valid),
             self.dma_writer0.sink.address.eq(base_writer + offset_words),
-            self.dma_writer0.sink.data.eq((self.sink.in3 << 16) | self.sink.in2),
+            self.dma_writer0.sink.data.eq((self.sink.in1 << 16) | self.sink.in0),
             self.sink.ready.eq(0),
             If(self.sink.valid & self.dma_writer0.sink.ready,
                 NextValue(offset_words, offset_words + 1),
@@ -138,7 +138,7 @@ class DMARouter(LiteXModule):
 
         fsm_read.act("EVEN",
             self.dma_reader0.sink.valid.eq(1),
-            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
+            NextValue(self.dma_reader0.sink.address, base_reader + offset_words_r),
             If(self.dma_reader0.sink.ready,
                 NextValue(self.dma_reader0.source.ready, 1),
                 NextValue(offset_words_r, offset_words_r + 1),
@@ -158,13 +158,10 @@ class DMARouter(LiteXModule):
 
         fsm_read.act("ODD",
             self.dma_reader0.sink.valid.eq(1),
-            self.dma_reader0.sink.address.eq(base_reader + offset_words_r),
+            NextValue(self.dma_reader0.sink.address, base_reader + offset_words_r),
             If(self.dma_reader0.sink.ready,
                 NextValue(self.dma_reader0.source.ready, 1),
                 NextValue(offset_words_r, offset_words_r + 1),
-                If((offset_words_r + 1) == length_words,
-                    NextValue(offset_words_r, 0)
-                ),
                 NextState("WAIT2"),
             ),
         )
@@ -185,6 +182,9 @@ class DMARouter(LiteXModule):
             # Not sure about this...
             If(self.source.ready,
                 NextValue(self.source.valid, 0),
+                If(offset_words_r == length_words,
+                    NextValue(offset_words_r, 0)
+                ),
                 NextState("EVEN"),
             )
          )

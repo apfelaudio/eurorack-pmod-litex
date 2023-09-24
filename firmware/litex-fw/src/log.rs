@@ -6,7 +6,7 @@ use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use core::arch::asm;
-use crate::{BUF_IN, BUF_IN_CP, BUF_OUT, BUF_OUT_CP, BUF_SZ_WORDS};
+use crate::{BUF_IN, BUF_OUT, BUF_SZ_WORDS, BUF_SZ_SAMPLES};
 use crate::*;
 use core::sync::atomic::fence;
 use core::sync::atomic::compiler_fence;
@@ -59,23 +59,17 @@ fn default_handler() {
         }
 
         if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-            for i in 0..(BUF_SZ_WORDS/2) {
+            for i in 0..(BUF_SZ_SAMPLES/2) {
                 unsafe {
-                    BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
-                    BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
-                    BUF_OUT[i]       = BUF_OUT_CP[2*i] as u32;
-                    BUF_OUT[i]      |= (BUF_OUT_CP[2*i+1] as u32) << 16;
+                    //BUF_OUT[i] = BUF_IN[i];
                 }
             }
         }
 
         if offset as usize == (BUF_SZ_WORDS-1) {
-            for i in (BUF_SZ_WORDS/2)..(BUF_SZ_WORDS) {
+            for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
                 unsafe {
-                    BUF_IN_CP[2*i]   = (BUF_IN[i] & 0xFFFF) as i16;
-                    BUF_IN_CP[2*i+1] = (BUF_IN[i] >> 16)    as i16;
-                    BUF_OUT[i]       = BUF_OUT_CP[2*i] as u32;
-                    BUF_OUT[i]      |= (BUF_OUT_CP[2*i+1] as u32) << 16;
+                    //BUF_OUT[i] = BUF_IN[i];
                 }
             }
         }
