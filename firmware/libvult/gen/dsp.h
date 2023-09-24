@@ -7,26 +7,10 @@
 #include "vultin.h"
 #include "dsp.tables.h"
 
-static_inline fix16_t Dsp_tanh_table_raw_c0(int index){
-   return Dsp_tanh_table_c0[index];
-};
+fix16_t Dsp_do(fix16_t signal, fix16_t level);
 
-static_inline fix16_t Dsp_tanh_table_raw_c1(int index){
-   return Dsp_tanh_table_c1[index];
-};
-
-static_inline fix16_t Dsp_tanh_table_raw_c2(int index){
-   return Dsp_tanh_table_c2[index];
-};
-
-static_inline fix16_t Dsp_tanh_table(fix16_t x){
-   int index;
-   index = int_clip(fix_to_int(fix_mul(0x50000 /* 5.000000 */,(0x180000 /* 24.000000 */ + x))),0,240);
-   return (fix_wrap_array(Dsp_tanh_table_c0)[index] + fix_mul(x,(fix_wrap_array(Dsp_tanh_table_c1)[index] + fix_mul(x,fix_wrap_array(Dsp_tanh_table_c2)[index]))));
-}
-
-static_inline fix16_t Dsp_process(fix16_t x){
-   return Dsp_tanh_table(x);
+static_inline fix16_t Dsp_process(fix16_t signal, fix16_t level){
+   return Dsp_do(signal,level);
 };
 
 static_inline void Dsp_noteOn(int note, int velocity, int channel){

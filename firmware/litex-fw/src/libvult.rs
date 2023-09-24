@@ -6,6 +6,6 @@ include!(concat!(env!("OUT_DIR"), "/libvult_bindings.rs"));
 
 pub fn process(input: i16) -> i16 {
     unsafe {
-        (Dsp_process((input << 2).into()) >> 2) as i16
+        Dsp_process(input as i32, 0x8000) as i16
     }
 }

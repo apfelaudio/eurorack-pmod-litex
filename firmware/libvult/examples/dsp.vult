@@ -1,19 +1,16 @@
-/*
-The MIT License (MIT)
-
-Copyright (c) 2017 Leonardo Laguna Ruiz
------
-Tanh satuation
-*/
-
-fun tanh_table(x:real) @[table(min = -24.0, max = 24.0, size = 241)]{
-  return tanh(x);
+fun do(signal:real, level:real) : real {
+   val sign = if signal > 0.0 then 1.0 else -1.0;
+   val amp = abs(signal) * (8.0 * level + 1.0);
+   val base = floor(amp);
+   val delta = amp - base;
+   val out = if int(base) % 2 <> 0 then 1.0 - delta else delta;
+   return sign * out;
 }
 
-fun process(x) {
-   return tanh_table(x);
+fun process(signal, level) {
+  return do(signal, level);
 }
 and noteOn(note:int,velocity:int,channel:int){ }
 and noteOff(note:int,channel:int){ }
 and controlChange(control:int,value:int,channel:int){ }
-and default() { }
+and default(){ }
