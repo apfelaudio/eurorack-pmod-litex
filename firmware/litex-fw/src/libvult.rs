@@ -14,6 +14,9 @@ impl DspProcessType {
     }
 
     pub unsafe fn process(&mut self, input: i16) -> i16 {
-        Dsp_process(self, input as i32, 0, 0) as i16
+        // TODO: take slow param conversions out of here.
+        let time: fix16_t = short_to_fix(0x7FFF);
+        let feedback: fix16_t = short_to_fix(0x4FFF);
+        Dsp_process(self, short_to_fix(input), time, feedback) as i16
     }
 }

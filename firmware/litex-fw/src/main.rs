@@ -59,8 +59,10 @@ unsafe fn irq_handler() {
                 }
             }
 
+            /*
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_start = peripherals.TIMER0.uptime_cycles0.read().bits();
+            */
 
             if offset as usize == (BUF_SZ_WORDS-1) {
                 for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
@@ -72,11 +74,13 @@ unsafe fn irq_handler() {
                 }
             }
 
+            /*
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
             let trace_diff = trace_end - trace_start;
             // cycles for half the samples
             info!("{} {}", trace_diff, trace_diff >> 8);
+            */
         }
 
         peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));

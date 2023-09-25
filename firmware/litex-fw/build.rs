@@ -24,6 +24,7 @@ fn main() {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .use_core()
         .allowlist_file("../libvult/gen/dsp.hpp")
+        .allowlist_file("../libvult/runtime/vultin.h")
         .clang_arg("-I../libvult/runtime")
         .clang_arg("-I../../build/lambdaconcept_ecpix5/software/libc")
         .clang_arg("-I../../deps/pythondata-software-picolibc/pythondata_software_picolibc/data/newlib/libc/include")
