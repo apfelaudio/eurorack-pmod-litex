@@ -288,6 +288,7 @@ dependencies = [
  "riscv",
  "riscv-rt",
  "ufmt",
+ "vexriscv",
 ]
 
 [[package]]
@@ -669,6 +670,12 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "vexriscv"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6eac3d398d0468c76272ea6b2c187d3696f0ed126325f8f41ccc711e9e74cd06"
 
 [[package]]
 name = "void"
