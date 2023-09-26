@@ -137,9 +137,10 @@ class DMARouter(LiteXModule):
         )
 
         fsm_read.act("EVEN",
-            self.dma_reader0.sink.valid.eq(1),
+            NextValue(self.dma_reader0.sink.valid, 1),
             NextValue(self.dma_reader0.sink.address, base_reader + offset_words_r),
             If(self.dma_reader0.sink.ready,
+                NextValue(self.dma_reader0.sink.valid, 0),
                 NextValue(self.dma_reader0.source.ready, 1),
                 NextValue(offset_words_r, offset_words_r + 1),
                 NextState("WAIT1"),
@@ -147,7 +148,6 @@ class DMARouter(LiteXModule):
         )
 
         fsm_read.act("WAIT1",
-            # Not sure about this...
             If(self.dma_reader0.source.valid,
                 NextValue(self.dma_reader0.source.ready, 0),
                 NextValue(self.source.out0, self.dma_reader0.source.data[:16]),
@@ -157,9 +157,10 @@ class DMARouter(LiteXModule):
          )
 
         fsm_read.act("ODD",
-            self.dma_reader0.sink.valid.eq(1),
+            NextValue(self.dma_reader0.sink.valid, 1),
             NextValue(self.dma_reader0.sink.address, base_reader + offset_words_r),
             If(self.dma_reader0.sink.ready,
+                NextValue(self.dma_reader0.sink.valid, 0),
                 NextValue(self.dma_reader0.source.ready, 1),
                 NextValue(offset_words_r, offset_words_r + 1),
                 NextState("WAIT2"),
@@ -168,7 +169,6 @@ class DMARouter(LiteXModule):
 
 
         fsm_read.act("WAIT2",
-            # Not sure about this...
             If(self.dma_reader0.source.valid,
                 NextValue(self.source.valid, 1),
                 NextValue(self.dma_reader0.source.ready, 0),
@@ -179,7 +179,6 @@ class DMARouter(LiteXModule):
          )
 
         fsm_read.act("WAIT3",
-            # Not sure about this...
             If(self.source.ready,
                 NextValue(self.source.valid, 0),
                 If(offset_words_r == length_words,

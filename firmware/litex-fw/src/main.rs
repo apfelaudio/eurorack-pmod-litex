@@ -35,7 +35,8 @@ const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 static mut BUF_OUT: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 
-static mut VULT: Option<libvult::DspProcessType> = None;
+static mut VULTA: Option<libvult::DspProcessType> = None;
+static mut VULTB: Option<libvult::DspProcessType> = None;
 
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
@@ -47,14 +48,15 @@ unsafe fn irq_handler() {
         let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
-        if let Some(ref mut vult) = VULT {
+        if let Some(ref mut vulta) = VULTA {
+        if let Some(ref mut vultb) = VULTB {
 
             if offset as usize == ((BUF_SZ_WORDS/2)+1) {
                 for i in 0..(BUF_SZ_SAMPLES/2) {
-                    if i % 4 == 0 {
-                        BUF_OUT[i] = vult.process(BUF_IN[i]);
-                    } else {
-                        BUF_OUT[i] = 0;
+                    BUF_OUT[i] = match i % 4 {
+                        0 => vulta.process(BUF_IN[i]),
+                        1 => vultb.process(BUF_IN[i]),
+                        _ => 0
                     }
                 }
             }
@@ -66,10 +68,10 @@ unsafe fn irq_handler() {
 
             if offset as usize == (BUF_SZ_WORDS-1) {
                 for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
-                    if i % 4 == 0 {
-                        BUF_OUT[i] = vult.process(BUF_IN[i]);
-                    } else {
-                        BUF_OUT[i] = 0;
+                    BUF_OUT[i] = match i % 4 {
+                        0 => vulta.process(BUF_IN[i]),
+                        1 => vultb.process(BUF_IN[i]),
+                        _ => 0
                     }
                 }
             }
@@ -81,6 +83,7 @@ unsafe fn irq_handler() {
             // cycles for half the samples
             info!("{} {}", trace_diff, trace_diff >> 8);
             */
+        }
         }
 
         peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
@@ -104,7 +107,8 @@ fn main() -> ! {
     }
 
     unsafe {
-        VULT = Some(libvult::DspProcessType::new());
+        VULTA = Some(libvult::DspProcessType::new());
+        VULTB = Some(libvult::DspProcessType::new());
 
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
@@ -123,6 +127,7 @@ fn main() -> ! {
     }
 
     loop {
+        /*
         log::info!("READ");
         unsafe {
             asm!("fence iorw, iorw");
@@ -132,5 +137,6 @@ fn main() -> ! {
             }
         }
         timer.delay_ms(500u32);
+        */
     }
 }
