@@ -16,6 +16,5 @@ micromath = "2.0.0"
 midi-types = "0.1.7"
 paste = "1.0.14"
 embedded-graphics = "0.8.1"
-heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+heapless = { version = "0.7.16", default-features = false, features = ["ufmt-impl", "atomic-polyfill"] }
 ufmt = "0.2.0"
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
