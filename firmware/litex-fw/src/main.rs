@@ -87,6 +87,9 @@ unsafe fn irq_handler() {
         }
 
         peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
+
+        asm!("fence iorw, iorw");
+        asm!(".word(0x500F)");
     }
 }
 
