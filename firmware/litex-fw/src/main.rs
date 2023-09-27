@@ -35,8 +35,8 @@ const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 static mut BUF_OUT: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 
-static mut VULTA: Option<libvult::DspProcessType> = None;
-static mut VULTB: Option<libvult::DspProcessType> = None;
+static mut VULTA: Option<libvult::VultDsp> = None;
+static mut VULTB: Option<libvult::VultDsp> = None;
 
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
@@ -61,10 +61,8 @@ unsafe fn irq_handler() {
                 }
             }
 
-            /*
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_start = peripherals.TIMER0.uptime_cycles0.read().bits();
-            */
 
             if offset as usize == (BUF_SZ_WORDS-1) {
                 for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
@@ -76,13 +74,11 @@ unsafe fn irq_handler() {
                 }
             }
 
-            /*
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
             let trace_diff = trace_end - trace_start;
             // cycles for half the samples
             info!("{} {}", trace_diff, trace_diff >> 8);
-            */
         }
         }
 
@@ -110,8 +106,8 @@ fn main() -> ! {
     }
 
     unsafe {
-        VULTA = Some(libvult::DspProcessType::new());
-        VULTB = Some(libvult::DspProcessType::new());
+        VULTA = Some(libvult::VultDsp::new());
+        VULTB = Some(libvult::VultDsp::new());
 
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));

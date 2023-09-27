@@ -26,8 +26,8 @@ fn panic(panic_info: &PanicInfo) -> ! {
 }
 
 #[export_name = "ExceptionHandler"]
-fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
-    _logger_write(b"exception_handler\n");
+fn exception_handler(trap_frame: &riscv_rt::TrapFrame) -> ! {
+    info!("exception_handler: TrapFrame from {:x}", trap_frame.ra);
     loop {}
 }
 
