@@ -8,9 +8,9 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("No out dir");
     let dest_path = Path::new(&out_dir);
 
-    println!("cargo:rustc-link-search=native=../libvult");
+    println!("cargo:rustc-link-search=native=../libvult/build");
     println!("cargo:rustc-link-lib=static=vult");
-    println!("cargo:rerun-if-changed=../libvult/gen/dsp.hpp");
+    println!("cargo:rerun-if-changed=../libvult/build/dsp.hpp");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -18,15 +18,16 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("../libvult/gen/dsp.hpp")
+        .header("../libvult/build/dsp.hpp")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .use_core()
-        .allowlist_file("../libvult/gen/dsp.hpp")
+        .allowlist_file("../libvult/build/dsp.hpp")
         .allowlist_file("../libvult/runtime/vultin.h")
         .clang_arg("-I../libvult/runtime")
-        .clang_arg("-I../../build/lambdaconcept_ecpix5/software/libc")
+        .clang_arg(
+            concat!("-I", env!("BUILD_DIR"), "/software/libc"))
         .clang_arg("-I../../deps/pythondata-software-picolibc/pythondata_software_picolibc/data/newlib/libc/include")
         .clang_arg("--target=riscv32-unknown-none-elf")
         // Finish the builder and generate the bindings.
