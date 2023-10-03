@@ -11,6 +11,7 @@ use riscv;
 use core::arch::asm;
 use aligned_array::{Aligned, A4};
 use vexriscv;
+use plic::Plic;
 
 mod log;
 mod libvult;
@@ -40,6 +41,8 @@ static mut VULTB: Option<libvult::VultDsp> = None;
 static mut VULTC: Option<libvult::VultDsp> = None;
 static mut VULTD: Option<libvult::VultDsp> = None;
 
+static mut PLIC: Option<&'static Plic> = None;
+
 static mut LAST_IRQ: u32 = 0;
 static mut LAST_IRQ_LEN: u32 = 0;
 static mut LAST_IRQ_PERIOD: u32 = 0;
@@ -48,7 +51,14 @@ static mut LAST_IRQ_PERIOD: u32 = 0;
 unsafe fn irq_handler() {
 
 
-    let pending_irq = vexriscv::register::vmip::read();
+    //let pending_irq = vexriscv::register::vmip::read();
+    let plic: &'static Plic = PLIC.unwrap();
+    // Claim for core 0
+    let pending_irq_opt = plic.claim(0);
+    let mut pending_irq = 0;
+    if let Some(irq) = pending_irq_opt {
+        pending_irq = irq.into();
+    }
     let peripherals = pac::Peripherals::steal();
 
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
@@ -56,57 +66,70 @@ unsafe fn irq_handler() {
     LAST_IRQ_PERIOD = trace - LAST_IRQ;
     LAST_IRQ = trace;
 
-    if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
-        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
-        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
+    match pending_irq {
+        3 => {
+            let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
+            let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
-        if let Some(ref mut vulta) = VULTA {
-        if let Some(ref mut vultb) = VULTB {
-        if let Some(ref mut vultc) = VULTC {
-        if let Some(ref mut vultd) = VULTD {
+            if let Some(ref mut vulta) = VULTA {
+            if let Some(ref mut vultb) = VULTB {
+            if let Some(ref mut vultc) = VULTC {
+            if let Some(ref mut vultd) = VULTD {
 
-            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-                for i in 0..(BUF_SZ_SAMPLES/2) {
-                    BUF_OUT[i] = match i % 4 {
-                        0 => vulta.process(BUF_IN[i]),
-                        1 => vultb.process(BUF_IN[i]),
-                        2 => vultc.process(BUF_IN[i]),
-                        3 => vultd.process(BUF_IN[i]),
-                        _ => 0
+                if offset as usize == ((BUF_SZ_WORDS/2)+1) {
+                    for i in 0..(BUF_SZ_SAMPLES/2) {
+                        BUF_OUT[i] = match i % 4 {
+                            /*
+                            0 => vulta.process(BUF_IN[i]),
+                            */
+                            1 => vultb.process(BUF_IN[i]),
+                            2 => vultc.process(BUF_IN[i]),
+                            3 => vultd.process(BUF_IN[i]),
+                            _ => 0
+                        }
                     }
                 }
-            }
 
-            if offset as usize == (BUF_SZ_WORDS-1) {
-                for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
-                    BUF_OUT[i] = match i % 4 {
-                        0 => vulta.process(BUF_IN[i]),
-                        1 => vultb.process(BUF_IN[i]),
-                        2 => vultc.process(BUF_IN[i]),
-                        3 => vultd.process(BUF_IN[i]),
-                        _ => 0
+                if offset as usize == (BUF_SZ_WORDS-1) {
+                    for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
+                        BUF_OUT[i] = match i % 4 {
+                            /*
+                            0 => vulta.process(BUF_IN[i]),
+                            */
+                            1 => vultb.process(BUF_IN[i]),
+                            2 => vultc.process(BUF_IN[i]),
+                            3 => vultd.process(BUF_IN[i]),
+                            _ => 0
+                        }
                     }
                 }
+
+            }
+            }
+            }
             }
 
-        }
-        }
-        }
-        }
+            peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
 
-        peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
-
-        asm!("fence iorw, iorw");
-        asm!(".word(0x500F)");
+            asm!("fence iorw, iorw");
+            asm!(".word(0x500F)");
+        },
+        _ => {
+        }
     }
 
-    log::info!("irq");
 
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
     let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
     LAST_IRQ_LEN = trace_end - trace;
+
+    // Core 0, did 1 IRQ
+    plic.complete(0, pending_irq);
 }
 
+pub const unsafe fn plic_from_addr(addr: usize) -> &'static Plic {
+    &*(addr as *const Plic)
+}
 
 #[entry]
 fn main() -> ! {
@@ -124,6 +147,17 @@ fn main() -> ! {
     }
 
     unsafe {
+
+        let plic = plic_from_addr(0xf0c0_0000);
+        // First 0 is hart context CORES_0_EXTERNAL_INTERRUPT
+        plic.set_threshold(0, 0);
+        // Is the indexing correct?
+        plic.set_priority(pac::Interrupt::DMA_ROUTER0 as u32,  1);
+        // IRQ source, Hart context
+        plic.enable(pac::Interrupt::DMA_ROUTER0 as u32, 0);
+
+        PLIC = Some(plic);
+
         VULTA = Some(libvult::VultDsp::new());
         VULTB = Some(libvult::VultDsp::new());
         VULTC = Some(libvult::VultDsp::new());

@@ -19,3 +19,4 @@ heapless = { version = "0.7.16", features = ["ufmt-impl"] }
 ufmt = "0.2.0"
 aligned-array = "1.0.1"
 vexriscv = "0.0.3"
+plic = { version = "0.0.2", features = ["primitive-id"] }

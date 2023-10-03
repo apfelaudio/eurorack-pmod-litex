@@ -285,6 +285,7 @@ dependencies = [
  "litex-pac",
  "micromath",
  "panic-halt",
+ "plic",
  "riscv",
  "riscv-rt",
  "ufmt",
@@ -385,6 +386,12 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
+
+[[package]]
+name = "plic"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ad606bf31d67b0e10a161b7df7d6a97dda7be22ce4bebcff889476e867c9b7a"
 
 [[package]]
 name = "prettyplease"
