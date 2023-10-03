@@ -1,12 +1,3 @@
-# Define compiler and flags
-CC = riscv64-linux-gnu-gcc
-CFLAGS = -O3 -mabi=ilp32 -march=rv32imac -fno-builtin -nostdlib
-INCLUDES = \
-   -I gen \
-   -I runtime \
-   -I../../build/$(BOARD)/software/libc \
-   -I../../deps/pythondata-software-picolibc/pythondata_software_picolibc/data/newlib/libc/include
-
 # BOARD should be set by top-level makefile / build script.
 ifndef BOARD
 $(error BOARD is not set)
@@ -17,6 +8,16 @@ VULT_TARGET = dsp
 VULT_SRC = src/$(VULT_TARGET).vult
 CPP_SRC = gen/$(VULT_TARGET).cpp runtime/vultin.cpp
 OBJ = $(CPP_SRC:.cpp=.o)
+ARCH = rv32i
+
+# Define compiler and flags
+CC = riscv64-linux-gnu-gcc
+CFLAGS = -O3 -mabi=ilp32 -march=$(ARCH) -fno-builtin -nostdlib
+INCLUDES = \
+   -I gen \
+   -I runtime \
+   -I../../build/$(BOARD)/software/libc \
+   -I../../deps/pythondata-software-picolibc/pythondata_software_picolibc/data/newlib/libc/include
 
 # Define the target
 TARGET = build/libvult.a

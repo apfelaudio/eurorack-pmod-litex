@@ -100,6 +100,8 @@ unsafe fn irq_handler() {
         asm!(".word(0x500F)");
     }
 
+    log::info!("irq");
+
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
     let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
     LAST_IRQ_LEN = trace_end - trace;
@@ -134,7 +136,7 @@ fn main() -> ! {
         peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
 
         // Enable interrupts from DMA router (vexriscv specific register)
-        vexriscv::register::vmim::write(1 << (pac::Interrupt::DMA_ROUTER0 as usize));
+        //vexriscv::register::vmim::write(1 << (pac::Interrupt::DMA_ROUTER0 as usize));
 
         // Enable machine external interrupts (basically everything added on by LiteX).
         riscv::register::mie::set_mext();
@@ -151,8 +153,10 @@ fn main() -> ! {
             }
             log::info!("irq_period: {}", LAST_IRQ_PERIOD);
             log::info!("irq_len: {}", LAST_IRQ_LEN);
-            log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+            if LAST_IRQ_PERIOD != 0 {
+                log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+            }
         }
-        timer.delay_ms(500u32);
+        timer.delay_ms(10u32);
     }
 }

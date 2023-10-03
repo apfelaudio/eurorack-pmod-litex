@@ -11,7 +11,7 @@ export BUILD_DIR=`pwd`/../build/${BOARD}
 
 FW_ROOT=`pwd`
 OBJCOPY=${OBJCOPY:=riscv-none-elf-objcopy}
-RUST_TARGET=${TARGET_TRIPLE:=riscv32imac-unknown-none-elf}
+RUST_TARGET=${RUST_TARGET:=riscv32imac-unknown-none-elf}
 
 # Generate the Rust CSR bindings spat out by the LiteX SOC generated.
 cd $FW_ROOT/litex-pac/src

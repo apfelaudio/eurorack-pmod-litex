@@ -6,6 +6,14 @@ rustflags = [
   "-C", "link-arg=-Tdefmt.x"
 ]
 
+[target.riscv32i-unknown-none-elf]
+rustflags = [
+  "-C", "link-arg=-Tregions.ld",
+  "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x"
+]
+
 [build]
 target = "riscv32imac-unknown-none-elf"
 
