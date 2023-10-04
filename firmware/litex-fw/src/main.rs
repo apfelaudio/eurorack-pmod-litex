@@ -49,7 +49,8 @@ pub struct VexInterrupt {
 }
 
 unsafe impl riscv::peripheral::plic::InterruptNumber for VexInterrupt {
-    const MAX_INTERRUPT_NUMBER: u16 = 3u16;
+    // TODO: this is PLIC max -- fetch this from PAC?
+    const MAX_INTERRUPT_NUMBER: u16 = 32u16;
 
     fn number(self) -> u16 {
         self.pac_irq as u16
@@ -79,7 +80,8 @@ pub struct VexPriority {
 }
 
 unsafe impl riscv::peripheral::plic::PriorityNumber for VexPriority {
-    const MAX_PRIORITY_NUMBER: u8 = 0xFFu8;
+    // TODO: Customize Vex for more priority numbers?
+    const MAX_PRIORITY_NUMBER: u8 = 0x3u8;
     fn number(self) -> u8 { self.prio }
     fn try_from(value: u8) -> Result<Self, u8> { Ok(VexPriority{prio: value}) }
 }
