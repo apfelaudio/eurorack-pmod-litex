@@ -151,7 +151,9 @@ fn main() -> ! {
             }
             log::info!("irq_period: {}", LAST_IRQ_PERIOD);
             log::info!("irq_len: {}", LAST_IRQ_LEN);
-            log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+            if LAST_IRQ_PERIOD != 0 {
+                log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+            }
         }
         timer.delay_ms(500u32);
     }

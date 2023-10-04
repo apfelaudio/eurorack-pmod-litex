@@ -202,7 +202,7 @@ def add_eurorack_pmod(soc):
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads, sim=True)
 
     # Simulate all outputs looped back to inputs on the PMOD I2S
-    soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
+    # soc.comb += eurorack_pmod_pads.sdout1.eq(eurorack_pmod_pads.sdin1)
 
     # CDC
     cdc_in0 = ClockDomainCrossing(
@@ -265,6 +265,7 @@ def sim_soc_extension(sim_config, soc):
         soc.cd_clk_256fs.clk.eq(soc.platform.request("clocker_256fs")),
     ]
     add_eurorack_pmod(soc)
+    sim_config.add_module("i2s", "eurorack_pmod_p0", clocks="clk_256fs")
 
 if __name__ == "__main__":
     main(sys_clk_freq=CLK_FREQ_SYS, soc_extension_hook=sim_soc_extension)
