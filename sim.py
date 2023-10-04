@@ -265,7 +265,7 @@ def sim_soc_extension(sim_config, soc):
         soc.cd_clk_256fs.clk.eq(soc.platform.request("clocker_256fs")),
     ]
     add_eurorack_pmod(soc)
-    sim_config.add_module("i2s", "eurorack_pmod_p0", clocks="clk_256fs")
+    sim_config.add_module("i2s", "eurorack_pmod_p0")
 
 if __name__ == "__main__":
     main(sys_clk_freq=CLK_FREQ_SYS, soc_extension_hook=sim_soc_extension)

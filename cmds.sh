@@ -12,3 +12,4 @@ OBJCOPY=riscv64-elf-objcopy BOARD=sim ./build.sh
 ./sim.py --integrated-main-ram-size=0x10000 --ram-init build/sim/rust-fw.bin --cpu-type vexriscv --cpu-variant imac  --gtkwave-savefile --trace --trace-fst
 
 # --threads 4 for speedup?
+./sim.py --integrated-main-ram-size=0x100000 --ram-init build/sim/rust-fw.bin --cpu-type vexriscv --cpu-variant imac --timer-uptime --csr-svd build/sim/csr.svd --gtkwave-savefile --trace --trace-fst

@@ -69,9 +69,9 @@ unsafe fn irq_handler() {
                 for i in 0..(BUF_SZ_SAMPLES/2) {
                     BUF_OUT[i] = match i % 4 {
                         0 => vulta.process(BUF_IN[i]),
-                        1 => vultb.process(BUF_IN[i]),
+                        //1 => vultb.process(BUF_IN[i]),
                         2 => vultc.process(BUF_IN[i]),
-                        3 => vultd.process(BUF_IN[i]),
+                        //3 => vultd.process(BUF_IN[i]),
                         _ => 0
                     }
                 }
@@ -81,9 +81,9 @@ unsafe fn irq_handler() {
                 for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
                     BUF_OUT[i] = match i % 4 {
                         0 => vulta.process(BUF_IN[i]),
-                        1 => vultb.process(BUF_IN[i]),
+                        //1 => vultb.process(BUF_IN[i]),
                         2 => vultc.process(BUF_IN[i]),
-                        3 => vultd.process(BUF_IN[i]),
+                        //3 => vultd.process(BUF_IN[i]),
                         _ => 0
                     }
                 }
