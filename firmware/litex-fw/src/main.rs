@@ -13,7 +13,6 @@ use aligned_array::{Aligned, A4};
 use vexriscv;
 
 mod log;
-mod libvult;
 use log::*;
 
 const SYSTEM_CLOCK_FREQUENCY: u32 = 50_000_000;
@@ -35,18 +34,12 @@ const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 static mut BUF_OUT: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
 
-static mut VULTA: Option<libvult::VultDsp> = None;
-static mut VULTB: Option<libvult::VultDsp> = None;
-static mut VULTC: Option<libvult::VultDsp> = None;
-static mut VULTD: Option<libvult::VultDsp> = None;
-
 static mut LAST_IRQ: u32 = 0;
 static mut LAST_IRQ_LEN: u32 = 0;
 static mut LAST_IRQ_PERIOD: u32 = 0;
 
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
-
 
     let pending_irq = vexriscv::register::vmip::read();
     let peripherals = pac::Peripherals::steal();
@@ -60,38 +53,16 @@ unsafe fn irq_handler() {
         let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
-        if let Some(ref mut vulta) = VULTA {
-        if let Some(ref mut vultb) = VULTB {
-        if let Some(ref mut vultc) = VULTC {
-        if let Some(ref mut vultd) = VULTD {
-
-            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-                for i in 0..(BUF_SZ_SAMPLES/2) {
-                    BUF_OUT[i] = match i % 4 {
-                        0 => vulta.process(BUF_IN[i]),
-                        //1 => vultb.process(BUF_IN[i]),
-                        2 => vultc.process(BUF_IN[i]),
-                        //3 => vultd.process(BUF_IN[i]),
-                        _ => 0
-                    }
-                }
+        if offset as usize == ((BUF_SZ_WORDS/2)+1) {
+            for i in 0..(BUF_SZ_SAMPLES/2) {
+                BUF_OUT[i] = BUF_IN[i];
             }
+        }
 
-            if offset as usize == (BUF_SZ_WORDS-1) {
-                for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
-                    BUF_OUT[i] = match i % 4 {
-                        0 => vulta.process(BUF_IN[i]),
-                        //1 => vultb.process(BUF_IN[i]),
-                        2 => vultc.process(BUF_IN[i]),
-                        //3 => vultd.process(BUF_IN[i]),
-                        _ => 0
-                    }
-                }
+        if offset as usize == (BUF_SZ_WORDS-1) {
+            for i in (BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES) {
+                BUF_OUT[i] = BUF_IN[i];
             }
-
-        }
-        }
-        }
         }
 
         peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
@@ -122,11 +93,6 @@ fn main() -> ! {
     }
 
     unsafe {
-        VULTA = Some(libvult::VultDsp::new());
-        VULTB = Some(libvult::VultDsp::new());
-        VULTC = Some(libvult::VultDsp::new());
-        VULTD = Some(libvult::VultDsp::new());
-
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
         peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));

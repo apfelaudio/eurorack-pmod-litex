@@ -21,11 +21,6 @@ OBJCOPY=${OBJCOPY:=riscv-none-elf-objcopy}
 cd $FW_ROOT/litex-pac/src
 svd2rust --log error -i $BUILD_DIR/csr.svd --target riscv
 
-# Build vult dependencies
-cd $FW_ROOT/libvult
-./transpile.sh
-./mklib.sh
-
 # Build the firmware .elf file
 cd $FW_ROOT/litex-fw
 cargo build --target=riscv32imac-unknown-none-elf --release
