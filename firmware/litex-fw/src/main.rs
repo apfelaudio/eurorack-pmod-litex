@@ -41,7 +41,7 @@ static mut LAST_IRQ: u32 = 0;
 static mut LAST_IRQ_LEN: u32 = 0;
 static mut LAST_IRQ_PERIOD: u32 = 0;
 
-static mut KARLSEN: Option<KarlsenLpf> = None;
+static mut PITCH: Option<PitchShift> = None;
 
 type Fix = FixedI32<U16>;
 
@@ -60,6 +60,61 @@ struct DcBlock {
     y_k1: Fix,
 }
 
+const DELAY_MAX: usize = 2048;
+
+struct DelayLine {
+    idx: usize,
+    x: [Fix; DELAY_MAX],
+}
+
+impl DelayLine {
+    fn new() -> Self {
+        Self {
+            idx: 0,
+            x: [Fix::from_num(0); DELAY_MAX],
+        }
+    }
+    fn add(&mut self, x: Fix) {
+        self.x[self.idx] = x;
+        self.idx = (self.idx + 1) % DELAY_MAX;
+    }
+    fn delayed(&self, delay: usize) -> Fix {
+        self.x[(DELAY_MAX + (self.idx - delay - 1)) % DELAY_MAX]
+    }
+}
+
+const WINDOW: usize = 512;
+const XFADE: usize = 128;
+
+struct PitchShift {
+    delayline: DelayLine,
+    delay: Fix,
+}
+
+impl PitchShift {
+    fn new() -> Self {
+        Self {
+            delayline: DelayLine::new(),
+            delay: Fix::from_num(0),
+        }
+    }
+    fn proc(&mut self, x: Fix, pitch: Fix) -> Fix {
+        let delay_int = self.delay.to_num::<usize>();
+        let delay0 = self.delayline.delayed(delay_int);
+        let delay1 = self.delayline.delayed(delay_int + WINDOW);
+        let env0 = Fix::min(Fix::ONE, self.delay / Fix::from_num(XFADE));
+        let env1 = Fix::max(Fix::ZERO, Fix::ONE - env0);
+        self.delay += pitch;
+        if self.delay >= WINDOW*2 {
+            self.delay = Fix::ZERO;
+        } else if self.delay <= Fix::ZERO {
+            self.delay = Fix::from_num(WINDOW*2);
+        }
+        self.delayline.add(x);
+        env0 * delay0 + env1 * delay1
+    }
+}
+
 impl DcBlock {
     fn new() -> Self {
         DcBlock {
@@ -68,6 +123,7 @@ impl DcBlock {
         }
     }
 
+    /// -1 <= x <= 1 (audio sample)
     fn proc(&mut self, x_k: Fix) -> Fix {
         self.y_k1 = (x_k - self.x_k1) + Fix::from_num(0.99f32) * self.y_k1;
         self.x_k1 = x_k;
@@ -88,6 +144,9 @@ impl KarlsenLpf {
         }
     }
 
+    /// -1 <= x <= 1 (audio sample)
+    /// 0 <= g <= 1 (cutoff)
+    /// 0 <= res <= 1 (resonance)
     fn proc(&mut self, x: Fix, g: Fix, res: Fix) -> Fix {
         let gmax = Fix::max(Fix::from_num(0), g);
         let res_scaled = Fix::max(Fix::from_num(0), res * 4);
@@ -102,7 +161,7 @@ impl KarlsenLpf {
     }
 }
 
-fn process(dsp: &mut KarlsenLpf, buf_out: &mut [i16], buf_in: &[i16]) {
+fn process(dsp: &mut PitchShift, buf_out: &mut [i16], buf_in: &[i16]) {
     for i in 0..(buf_in.len()/N_CHANNELS) {
         let x_in: [Fix; N_CHANNELS] = [
             Fix::from_bits(buf_in[N_CHANNELS*i+0] as i32),
@@ -110,7 +169,7 @@ fn process(dsp: &mut KarlsenLpf, buf_out: &mut [i16], buf_in: &[i16]) {
             Fix::from_bits(buf_in[N_CHANNELS*i+2] as i32),
             Fix::from_bits(buf_in[N_CHANNELS*i+3] as i32),
         ];
-        let y: Fix = dsp.proc(x_in[0], x_in[1], x_in[2]);
+        let y: Fix = dsp.proc(x_in[0], x_in[1]);
         buf_out[N_CHANNELS*i+0] = y.to_bits() as i16;
         buf_out[N_CHANNELS*i+1] = x_in[1].to_bits() as i16;
         buf_out[N_CHANNELS*i+2] = x_in[2].to_bits() as i16;
@@ -133,7 +192,7 @@ unsafe fn irq_handler() {
         let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
-        if let Some(ref mut dsp) = KARLSEN {
+        if let Some(ref mut dsp) = PITCH {
             if offset as usize == ((BUF_SZ_WORDS/2)+1) {
                 process(dsp,
                         &mut BUF_OUT[0..(BUF_SZ_SAMPLES/2)],
@@ -175,7 +234,7 @@ fn main() -> ! {
     }
 
     unsafe {
-        KARLSEN = Some(KarlsenLpf::new());
+        PITCH = Some(PitchShift::new());
 
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
