@@ -68,7 +68,7 @@ impl KarlsenLpf {
 
     fn proc(&mut self, x: Fix, g: Fix, res: Fix) -> Fix {
         let gmax = Fix::max(Fix::from_num(0), g);
-        let res_scaled = res * 4;
+        let res_scaled = Fix::max(Fix::from_num(0), res * 4);
         self.rezz = x - ((self.a4 - x) * res_scaled);
         self.sat = Fix::min(Fix::ONE, self.rezz);
         self.sat = Fix::max(-Fix::ONE, self.rezz);
