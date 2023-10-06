@@ -52,6 +52,27 @@ struct KarlsenLpf {
     a2  : Fix,
     a3  : Fix,
     a4  : Fix,
+    dc_block : DcBlock,
+}
+
+struct DcBlock {
+    x_k1: Fix,
+    y_k1: Fix,
+}
+
+impl DcBlock {
+    fn new() -> Self {
+        DcBlock {
+            x_k1: Fix::from_num(0),
+            y_k1: Fix::from_num(0),
+        }
+    }
+
+    fn proc(&mut self, x_k: Fix) -> Fix {
+        self.y_k1 = (x_k - self.x_k1) + Fix::from_num(0.99f32) * self.y_k1;
+        self.x_k1 = x_k;
+        self.y_k1
+    }
 }
 
 impl KarlsenLpf {
@@ -62,7 +83,8 @@ impl KarlsenLpf {
             a1: Fix::from_num(0),
             a2: Fix::from_num(0),
             a3: Fix::from_num(0),
-            a4: Fix::from_num(0)
+            a4: Fix::from_num(0),
+            dc_block: DcBlock::new(),
         }
     }
 
@@ -76,7 +98,7 @@ impl KarlsenLpf {
         self.a2 = self.a2 + ((-self.a2 + self.a1) * gmax);
         self.a3 = self.a3 + ((-self.a3 + self.a2) * gmax);
         self.a4 = self.a4 + ((-self.a4 + self.a3) * gmax);
-        self.a4
+        self.dc_block.proc(self.a4)
     }
 }
 
