@@ -16,7 +16,7 @@ use fixed::{FixedI32, types::extra::U16};
 mod log;
 use log::*;
 
-const SYSTEM_CLOCK_FREQUENCY: u32 = 50_000_000;
+const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
 
 litex_hal::uart! {
     Uart: litex_pac::UART,
@@ -236,26 +236,27 @@ unsafe fn irq_handler() {
     let pending_irq = PLIC0::claim().unwrap();
     let peripherals = pac::Peripherals::steal();
 
+    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
+    let trace = peripherals.TIMER0.uptime_cycles0.read().bits();
+    LAST_IRQ_PERIOD = trace - LAST_IRQ;
+    LAST_IRQ = trace;
+
+
     match pending_irq.pac_irq {
         pac::Interrupt::DMA_ROUTER0 => {
             let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
             let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
+            asm!("fence iorw, iorw");
+            asm!(".word(0x500F)");
+
             if let Some(ref mut dsp) = PITCH {
                 if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-
-                    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-                    let trace = peripherals.TIMER0.uptime_cycles0.read().bits();
-                    LAST_IRQ_PERIOD = trace - LAST_IRQ;
-                    LAST_IRQ = trace;
 
                     process(dsp,
                             &mut BUF_OUT[0..(BUF_SZ_SAMPLES/2)],
                             &BUF_IN[0..(BUF_SZ_SAMPLES/2)]);
 
-                    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-                    let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
-                    LAST_IRQ_LEN = trace_end - trace;
                 }
 
                 if offset as usize == (BUF_SZ_WORDS-1) {
@@ -276,6 +277,10 @@ unsafe fn irq_handler() {
 
 
     PLIC0::complete(pending_irq);
+
+    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
+    let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
+    LAST_IRQ_LEN = trace_end - trace;
 }
 
 
@@ -323,6 +328,7 @@ fn main() -> ! {
             for i in 0..4 {
                 log::info!("{:x}@{:x},{:x}", i, BUF_IN[i], BUF_OUT[i]);
             }
+            log::info!("{}", riscv::register::mhartid::read());
             log::info!("irq_period: {}", LAST_IRQ_PERIOD);
             log::info!("irq_len: {}", LAST_IRQ_LEN);
             if LAST_IRQ_PERIOD != 0 {

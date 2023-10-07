@@ -258,8 +258,8 @@ def add_eurorack_pmod(soc, sample_rate=48000):
 def main():
     from litex.build.parser import LiteXArgumentParser
     parser = LiteXArgumentParser(platform=colorlight_i5.Platform, description="LiteX SoC on Colorlight I5.")
-    parser.add_target_argument("--board",            default="i5",             help="Board type (i5).")
-    parser.add_target_argument("--revision",         default="7.0",            help="Board revision (7.0).")
+    parser.add_target_argument("--board",            default="i9",             help="Board type (i5).")
+    parser.add_target_argument("--revision",         default="7.2",            help="Board revision (7.0).")
     parser.add_target_argument("--sys-clk-freq",     default=60e6, type=float, help="System clock frequency.")
     viopts = parser.target_group.add_mutually_exclusive_group()
     args = parser.parse_args()
