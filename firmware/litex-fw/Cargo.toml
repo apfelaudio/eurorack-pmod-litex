@@ -9,7 +9,7 @@ edition = "2021"
 bindgen = "0.68.1"
 
 [dependencies]
-riscv = "*"
+riscv = { git = "https://github.com/rust-embedded/riscv", branch="master", features = ["plic"] }
 riscv-rt = "*"
 panic-halt = "*"
 litex-hal = { path = "../deps/rust-litex-hal" }
@@ -18,5 +18,4 @@ micromath = "2.0.0"
 heapless = { version = "0.7.16", features = ["ufmt-impl"] }
 ufmt = "0.2.0"
 aligned-array = "1.0.1"
-vexriscv = "0.0.3"
 fixed = "1.24.0"

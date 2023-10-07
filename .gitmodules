@@ -43,3 +43,6 @@
 [submodule "deps/pythondata-misc-tapcf"]
 	path = deps/pythondata-misc-tapcf
 	url = https://github.com/litex-hub/pythondata-misc-tapcfg.git
+[submodule "deps/pythondata-cpu-naxriscv"]
+	path = deps/pythondata-cpu-naxriscv
+	url = https://github.com/litex-hub/pythondata-cpu-naxriscv.git

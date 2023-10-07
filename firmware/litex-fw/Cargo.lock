@@ -326,10 +326,9 @@ dependencies = [
  "litex-pac",
  "micromath",
  "panic-halt",
- "riscv",
+ "riscv 0.10.1 (git+https://github.com/rust-embedded/riscv?branch=master)",
  "riscv-rt",
  "ufmt",
- "vexriscv",
 ]
 
 [[package]]
@@ -345,7 +344,7 @@ dependencies = [
 name = "litex-pac"
 version = "0.1.0"
 dependencies = [
- "riscv",
+ "riscv 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "riscv-rt",
  "vcell",
 ]
@@ -526,13 +525,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "riscv"
+version = "0.10.1"
+source = "git+https://github.com/rust-embedded/riscv?branch=master#6301ad49e065ac9e135f4e198cbb2e0a735ae1ef"
+dependencies = [
+ "critical-section",
+ "embedded-hal",
+ "volatile-register",
+]
+
+[[package]]
 name = "riscv-rt"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "102c52c89defde24dedf9ac077cc69df77b85aa2400dd2d5aad6eea6a6a5c089"
 dependencies = [
  "r0",
- "riscv",
+ "riscv 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "riscv-rt-macros",
  "riscv-target",
 ]
@@ -713,16 +722,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
-name = "vexriscv"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6eac3d398d0468c76272ea6b2c187d3696f0ed126325f8f41ccc711e9e74cd06"
-
-[[package]]
 name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "volatile-register"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ee8f19f9d74293faf70901bc20ad067dc1ad390d2cbf1e3f75f721ffee908b6"
+dependencies = [
+ "vcell",
+]
 
 [[package]]
 name = "which"
