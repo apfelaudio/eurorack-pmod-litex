@@ -229,6 +229,11 @@ fn process(dsp: &mut PitchShift, buf_out: &mut [i16], buf_in: &[i16]) {
     }
 }
 
+unsafe fn fence() {
+    asm!("fence iorw, iorw");
+    asm!(".word(0x500F)");
+}
+
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
 
@@ -247,19 +252,16 @@ unsafe fn irq_handler() {
             let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
             let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
 
-            asm!("fence iorw, iorw");
-            asm!(".word(0x500F)");
-
             if let Some(ref mut dsp) = PITCH {
                 if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-
+                    fence();
                     process(dsp,
                             &mut BUF_OUT[0..(BUF_SZ_SAMPLES/2)],
                             &BUF_IN[0..(BUF_SZ_SAMPLES/2)]);
-
                 }
 
                 if offset as usize == (BUF_SZ_WORDS-1) {
+                    fence();
                     process(dsp,
                             &mut BUF_OUT[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)],
                             &BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)]);
@@ -268,8 +270,7 @@ unsafe fn irq_handler() {
 
             peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
 
-            asm!("fence iorw, iorw");
-            asm!(".word(0x500F)");
+            fence();
         },
         _ => {
         }
@@ -286,6 +287,12 @@ unsafe fn irq_handler() {
 
 #[entry]
 fn main() -> ! {
+
+    if riscv::register::mhartid::read() != 0 {
+        // If we are SMP, block all cores except core 0.
+        loop {};
+    }
+
     let peripherals = unsafe { pac::Peripherals::steal() };
 
     log::init(peripherals.UART);
