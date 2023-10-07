@@ -136,12 +136,12 @@ impl DelayLine {
     }
 }
 
-const WINDOW: usize = 512;
 const XFADE: usize = 64;
 
 struct PitchShift {
     delayline: DelayLine,
     delay: Fix,
+    window: usize,
 }
 
 impl PitchShift {
@@ -149,19 +149,20 @@ impl PitchShift {
         Self {
             delayline: DelayLine::new(),
             delay: Fix::from_num(0),
+            window: 512,
         }
     }
     fn proc(&mut self, x: Fix, pitch: Fix) -> Fix {
         let delay_int = self.delay.to_num::<usize>();
         let delay0 = self.delayline.delayed(delay_int);
-        let delay1 = self.delayline.delayed(delay_int + WINDOW);
+        let delay1 = self.delayline.delayed(delay_int + self.window);
         let env0 = Fix::min(Fix::ONE, self.delay / Fix::from_num(XFADE));
         let env1 = Fix::max(Fix::ZERO, Fix::ONE - env0);
-        self.delay += pitch;
-        if self.delay >= WINDOW*2 {
+        self.delay += pitch*4;
+        if self.delay >= self.window*2 {
             self.delay = Fix::ZERO;
         } else if self.delay <= Fix::ZERO {
-            self.delay = Fix::from_num(WINDOW*2);
+            self.delay = Fix::from_num(self.window*2);
         }
         self.delayline.add(x);
         env0 * delay0 + env1 * delay1
@@ -260,7 +261,7 @@ impl PitchEstimator {
         }
         let mut notch_min: u32 = u32::MAX;
         let mut notch_min_index: usize = 0;
-        for n in 64..(ESTIMATOR_SAMPLES-64) {
+        for n in 128..(ESTIMATOR_SAMPLES-128) {
             if correllation[n] < notch_min {
                 notch_min = correllation[n];
                 notch_min_index = n;
@@ -409,7 +410,13 @@ fn main() -> ! {
                 log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
             }
             if let Some(ref mut est) = ESTIMATOR {
-                est.measure_and_reset();
+                let mut n = est.measure_and_reset();
+                while n * 2 < 1024 {
+                    n *= 2;
+                }
+                if let Some(ref mut p) = PITCH {
+                    p.window = n;
+                }
             }
         }
         timer.delay_ms(100u32);
