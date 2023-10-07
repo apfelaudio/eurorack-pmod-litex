@@ -94,6 +94,7 @@ static mut PLIC: Option<PLIC0> = None;
 
 
 static mut PITCH: Option<PitchShift> = None;
+static mut ESTIMATOR: Option<PitchEstimator> = None;
 
 type Fix = FixedI32<U16>;
 
@@ -136,7 +137,7 @@ impl DelayLine {
 }
 
 const WINDOW: usize = 512;
-const XFADE: usize = 128;
+const XFADE: usize = 64;
 
 struct PitchShift {
     delayline: DelayLine,
@@ -213,8 +214,73 @@ impl KarlsenLpf {
     }
 }
 
+const ESTIMATOR_SAMPLES: usize = 1024;
+const ESTIMATOR_WORDS: usize = ESTIMATOR_SAMPLES / 32;
+
+struct PitchEstimator {
+    bitstream: [u32; ESTIMATOR_WORDS],
+    bit: usize,
+}
+
+impl PitchEstimator {
+    fn new() -> Self {
+        PitchEstimator {
+            bitstream: [0u32; ESTIMATOR_WORDS],
+            bit: 0usize,
+        }
+    }
+
+    fn feed(&mut self, x: bool)  {
+        if self.bit != ESTIMATOR_SAMPLES - 1 {
+            self.bitstream[self.bit / 32] |= (x as u32) << (31-(self.bit % 32));
+            self.bit += 1;
+        }
+    }
+
+    fn measure_and_reset(&mut self) -> usize {
+        let mut correllation: [u32; ESTIMATOR_SAMPLES] = [0u32; ESTIMATOR_SAMPLES];
+        let mut bitstream_shifted = self.bitstream.clone();
+        for n_shift in 0..ESTIMATOR_SAMPLES {
+            // Compute total mismatch in current shift by counting ones after XOR.
+            for n_word in 0..ESTIMATOR_WORDS {
+                correllation[n_shift] += (self.bitstream[n_word] ^ bitstream_shifted[n_word]).count_ones();
+            }
+            // Shift entire `bitstream_shifted` array left by 1 bit
+            let first_word = bitstream_shifted[0];
+            bitstream_shifted[0] = 0;
+            for n_word in 1..ESTIMATOR_WORDS {
+                // Shift whole words, carrying top bit to previous word
+                let top_bit: u32 = bitstream_shifted[n_word] >> 31;
+                bitstream_shifted[n_word] <<= 1;
+                bitstream_shifted[n_word-1] |= top_bit;
+            }
+            // The first and last words are special cases.
+            bitstream_shifted[0] = (first_word << 1) | (bitstream_shifted[0] & 1);
+            bitstream_shifted[ESTIMATOR_WORDS-1] |= first_word >> 31
+        }
+        let mut notch_min: u32 = u32::MAX;
+        let mut notch_min_index: usize = 0;
+        for n in 64..(ESTIMATOR_SAMPLES-64) {
+            if correllation[n] < notch_min {
+                notch_min = correllation[n];
+                notch_min_index = n;
+            }
+        }
+        info!("ESTIMATE idx:{} val:{}", notch_min_index, notch_min);
+        // Reset the estimator so we can feed it again.
+        self.bitstream = [0u32; ESTIMATOR_WORDS];
+        self.bit = 0;
+        notch_min_index
+    }
+}
+
 fn process(dsp: &mut PitchShift, buf_out: &mut [i16], buf_in: &[i16]) {
     for i in 0..(buf_in.len()/N_CHANNELS) {
+        unsafe {
+            if let Some(ref mut est) = ESTIMATOR {
+                est.feed(buf_in[N_CHANNELS*i+0] > 0);
+            }
+        }
         let x_in: [Fix; N_CHANNELS] = [
             Fix::from_bits(buf_in[N_CHANNELS*i+0] as i32),
             Fix::from_bits(buf_in[N_CHANNELS*i+1] as i32),
@@ -308,6 +374,7 @@ fn main() -> ! {
 
     unsafe {
         PITCH = Some(PitchShift::new());
+        ESTIMATOR = Some(PitchEstimator::new());
 
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
@@ -341,7 +408,10 @@ fn main() -> ! {
             if LAST_IRQ_PERIOD != 0 {
                 log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
             }
+            if let Some(ref mut est) = ESTIMATOR {
+                est.measure_and_reset();
+            }
         }
-        timer.delay_ms(500u32);
+        timer.delay_ms(100u32);
     }
 }
