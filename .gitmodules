@@ -61,3 +61,9 @@
 [submodule "firmware/ssd1322"]
 	path = firmware/ssd1322
 	url = https://github.com/schnommus/ssd1322.git
+[submodule "deps/--force"]
+	path = deps/--force
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv_smp.git
+[submodule "deps/pythondata-cpu-vexriscv_smp"]
+	path = deps/pythondata-cpu-vexriscv_smp
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv_smp.git

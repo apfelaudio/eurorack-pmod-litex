@@ -158,6 +158,13 @@ where
     Ok(())
 }
 
+fn fence() {
+    unsafe {
+        asm!("fence iorw, iorw");
+        asm!(".word(0x500F)");
+    }
+}
+
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
@@ -406,6 +413,7 @@ fn main() -> ! {
             }
             peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
             peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
+            fence();
             peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
             peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
         }
