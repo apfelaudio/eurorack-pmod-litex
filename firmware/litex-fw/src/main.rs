@@ -10,6 +10,7 @@ use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use embedded_midi::MidiIn;
+use core::arch::asm;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
@@ -254,6 +255,15 @@ fn main() -> ! {
     let mut modif: bool = false;
     let mut btn_held_ms: u32 = 0;
 
+    unsafe {
+        peripherals.SPI_DMA.spi_control_reg_address.write(
+            |w| w.bits(litex_pac::OLED_SPI::PTR as u32));
+        peripherals.SPI_DMA.spi_status_reg_address.write(
+            |w| w.bits(litex_pac::OLED_SPI::PTR as u32 + 0x04));
+        peripherals.SPI_DMA.spi_mosi_reg_address.write(
+            |w| w.bits(litex_pac::OLED_SPI::PTR as u32 + 0x08));
+    }
+
     loop {
 
         Text::with_alignment(
@@ -388,13 +398,22 @@ fn main() -> ! {
             .draw(&mut disp).ok();
         }
 
-        disp.swap_clear();
+        let fb = disp.swap_clear();
+        unsafe {
+            while peripherals.SPI_DMA.done.read().bits() == 0 {
+                // Don't start to DMA a new framebuffer if we're still
+                // pushing through the last one.
+            }
+            peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
+            peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
+            peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
+            peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
+        }
 
         let cycle_cnt_now = timer.uptime();
         let cycle_cnt_last = cycle_cnt;
         cycle_cnt = cycle_cnt_now;
         let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
         td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
-
     }
 }

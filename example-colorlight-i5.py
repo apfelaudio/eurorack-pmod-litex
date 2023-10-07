@@ -25,6 +25,8 @@ from eurorack_pmod_migen.blocks import *
 
 from rtl.pca9635_master import *
 
+from spi_dma import Wishbone2SPIDMA
+
 _io_eurolut_proto1 = [
     ("eurorack_pmod_p3b", 0,
         Subsignal("mclk",    Pins("A3")),
@@ -174,6 +176,10 @@ def add_oled(soc):
     soc.submodules.oled_spi = spi_master
     spi_master.add_clk_divider()
     soc.submodules.oled_ctl = GPIOOut(soc.platform.request("oled_ctl"))
+
+    # SPI DMA for framebuffer dumping
+    soc.submodules.spi_dma = Wishbone2SPIDMA()
+    soc.bus.add_master(master=soc.spi_dma.bus)
 
 def add_pca9635_master(soc):
     pca9635_master = PCA9635Master(soc.platform, soc.platform.request("pca9635"))
