@@ -49,6 +49,8 @@ oc-fw.elf: $(OBJECTS)
 		-lbase \
 		-L$(BUILD_DIR)/libcompiler_rt \
 		-lcompiler_rt \
+		-L$(FW_DIRECTORY)/../firmware/oled-stub/target/riscv32imac-unknown-none-elf/release \
+		-loled_stub \
 		-Wl,--whole-archive \
 		-Wl,--gc-sections
 

@@ -131,6 +131,8 @@ int main(int i, char **c)
 
     printf("Eurolut DFU bootloader\n");
 
+    oled_stub_write("Bwootlider");
+
 	usb_device_controller_reset_write(1);
 	msleep(100);
 	usb_device_controller_reset_write(0);

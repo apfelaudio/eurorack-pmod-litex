@@ -1,0 +1,17 @@
+[package]
+name = "oled-stub"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+riscv = "*"
+embedded-graphics = "0.8.1"
+litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
+litex-pac = { path = "../litex-pac", features = ["rt"] }
+ssd1322 = { path = "../ssd1322", features = [] }
+nb = "1.1.0"
+
+[lib]
+crate-type = ["staticlib"]

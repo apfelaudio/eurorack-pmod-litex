@@ -22,6 +22,10 @@ OBJCOPY=${OBJCOPY:=riscv-none-elf-objcopy}
 cd $FW_ROOT/litex-pac/src
 svd2rust -i $BUILD_DIR/csr.svd --target riscv
 
+# Build OLED stub
+cd $FW_ROOT/oled-stub
+cargo build --target=riscv32imac-unknown-none-elf --release
+
 # Build the firmware .elf file
 cd $FW_ROOT/litex-fw
 cargo clippy --target=riscv32imac-unknown-none-elf
