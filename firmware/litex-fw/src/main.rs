@@ -275,7 +275,6 @@ impl PitchEstimator {
             // Circular correllation is actually worse
             // bitstream_shifted[ESTIMATOR_WORDS-1] |= first_word >> 31
         }
-        info!("ESTIMATE idx:{} val:{}", notch_min_index, notch_min);
         // Reset the estimator so we can feed it again.
         self.bitstream = [0u32; ESTIMATOR_WORDS];
         self.bit = 0;
@@ -407,6 +406,7 @@ fn main() -> ! {
 
     loop {
         unsafe {
+            /*
             asm!("fence iorw, iorw");
             for i in 0..4 {
                 log::info!("{:x}@{:x},{:x}", i, BUF_IN[i], BUF_OUT[i]);
@@ -417,21 +417,28 @@ fn main() -> ! {
             if LAST_IRQ_PERIOD != 0 {
                 log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
             }
+            */
 
     let peripherals = pac::Peripherals::steal();
 
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_pitch = peripherals.TIMER0.uptime_cycles0.read().bits();
             if let Some(ref mut est) = ESTIMATOR {
-                let mut n = est.measure_and_reset();
-                if let Some(ref mut p) = PITCH {
-                    p.window = n;
+                if est.bit == ESTIMATOR_SAMPLES-1 {
+                    let mut n = est.measure_and_reset();
+                    while (n*2) < (ESTIMATOR_SAMPLES/2) {
+                        n *= 2;
+                    }
+                    info!("ESTIMATE idx:{}", n);
+                    if let Some(ref mut p) = PITCH {
+                        p.window = n;
+                    }
                 }
             }
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_pitch2 = peripherals.TIMER0.uptime_cycles0.read().bits();
-            log::info!("est_len: {}", trace_pitch2 - trace_pitch);
+            //log::info!("est_len: {}", trace_pitch2 - trace_pitch);
         }
-        timer.delay_ms(1000u32);
+        //timer.delay_ms(1000u32);
     }
 }
