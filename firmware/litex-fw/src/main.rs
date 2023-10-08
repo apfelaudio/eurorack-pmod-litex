@@ -407,13 +407,13 @@ fn main() -> ! {
 
         let fb = disp.swap_clear();
         unsafe {
+            fence();
             while peripherals.SPI_DMA.done.read().bits() == 0 {
                 // Don't start to DMA a new framebuffer if we're still
                 // pushing through the last one.
             }
             peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
             peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
-            fence();
             peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
             peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
         }
