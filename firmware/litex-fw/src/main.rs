@@ -215,7 +215,7 @@ impl KarlsenLpf {
     }
 }
 
-const ESTIMATOR_SAMPLES: usize = 1024;
+const ESTIMATOR_SAMPLES: usize = 2048;
 const ESTIMATOR_WORDS: usize = ESTIMATOR_SAMPLES / 32;
 
 /// Pitch estimator based on 1-bit autocorrellator.
@@ -432,6 +432,6 @@ fn main() -> ! {
             let trace_pitch2 = peripherals.TIMER0.uptime_cycles0.read().bits();
             log::info!("est_len: {}", trace_pitch2 - trace_pitch);
         }
-        timer.delay_ms(5000u32);
+        timer.delay_ms(1000u32);
     }
 }
