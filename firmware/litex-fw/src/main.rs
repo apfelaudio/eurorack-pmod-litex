@@ -362,15 +362,13 @@ unsafe fn irq_handler() {
 #[entry]
 fn main() -> ! {
 
-    if riscv::register::mhartid::read() != 0 {
-        // If we are SMP, block all cores except core 0.
-        loop {};
-    }
 
     let peripherals = unsafe { pac::Peripherals::steal() };
 
     log::init(peripherals.UART);
     log::info!("hello from litex-fw!");
+
+    unsafe { fence(); }
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
@@ -419,6 +417,12 @@ fn main() -> ! {
             }
             */
 
+            if let Some(ref mut est) = ESTIMATOR {
+                while est.bit != ESTIMATOR_SAMPLES-1 {
+                    est.feed(est.bit % 2  == 0);
+                }
+            }
+
     let peripherals = pac::Peripherals::steal();
 
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
@@ -429,7 +433,7 @@ fn main() -> ! {
                     while (n*2) < (ESTIMATOR_SAMPLES/2) {
                         n *= 2;
                     }
-                    info!("ESTIMATE idx:{}", n);
+                    //info!("ESTIMATE idx:{}", n);
                     if let Some(ref mut p) = PITCH {
                         p.window = n;
                     }
@@ -437,8 +441,8 @@ fn main() -> ! {
             }
             peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
             let trace_pitch2 = peripherals.TIMER0.uptime_cycles0.read().bits();
-            //log::info!("est_len: {}", trace_pitch2 - trace_pitch);
+            log::info!("est_len: {}", trace_pitch2 - trace_pitch);
         }
-        //timer.delay_ms(1000u32);
+        timer.delay_ms(1000u32);
     }
 }

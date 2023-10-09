@@ -267,6 +267,7 @@ def main():
     soc = BaseSoC(board=args.board, revision=args.revision,
         toolchain              = args.toolchain,
         sys_clk_freq           = args.sys_clk_freq,
+        #sdram_rate = "1:2",
         **parser.soc_argdict
     )
 
