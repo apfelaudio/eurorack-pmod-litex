@@ -115,8 +115,8 @@ impl Scope {
     }
 
     fn reset(&mut self) {
-        self.n_samples = 0;
         core::mem::swap(&mut self.samples, &mut self.samples_dbl);
+        self.n_samples = 0;
     }
 }
 
@@ -517,16 +517,17 @@ fn main() -> ! {
         unsafe {
             if let Some(ref mut scope) = SCOPE {
                 if scope.full() {
+                    // samples_dbl can only ever update here
                     scope.reset();
-                    let mut points: [Point; 64] = [Point::new(0, 0); 64];
-                    for n in 0..points.len() {
-                        points[n].x = n as i32;
-                        points[n].y = 100 + (scope.samples_dbl[n] >> 10) as i32;
-                    }
-                    Polyline::new(&points)
-                        .into_styled(thin_stroke)
-                        .draw(&mut disp).ok();
                 }
+                let mut points: [Point; 64] = [Point::new(0, 0); 64];
+                for n in 0..points.len() {
+                    points[n].x = n as i32;
+                    points[n].y = 100 + (scope.samples_dbl[n] >> 10) as i32;
+                }
+                Polyline::new(&points)
+                    .into_styled(thin_stroke)
+                    .draw(&mut disp).ok();
             }
         }
 
