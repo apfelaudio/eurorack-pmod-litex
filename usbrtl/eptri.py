@@ -7,7 +7,7 @@ import os
 from migen import *
 from litex.soc.interconnect import wishbone
 from litex.build.io import DDROutput
-from rtl.amaranth_rtl.eptri import LunaEpTri
+from usbrtl.amaranth_rtl.eptri import LunaEpTri
 from litex.soc.interconnect.csr_eventmanager import *
 
 PLATFORM_NAME = "EuroLUT Proto1"

@@ -18,14 +18,12 @@ from litex.soc.integration.builder import *
 
 from litex_boards.targets.colorlight_i5 import *
 
-from rtl.eptri import LunaEpTriWrapper
+from usbrtl.eptri import LunaEpTriWrapper
 
-from eurorack_pmod_migen.core import *
-from eurorack_pmod_migen.blocks import *
-
+from rtl.eurorack_pmod_wrapper import *
+from rtl.dsp_wrapper import *
 from rtl.pca9635_master import *
-
-from spi_dma import Wishbone2SPIDMA
+from rtl.spi_dma import Wishbone2SPIDMA
 
 _io_eurolut_proto1 = [
     ("eurorack_pmod_p3b", 0,
