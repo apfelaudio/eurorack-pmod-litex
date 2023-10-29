@@ -390,7 +390,7 @@ fn main() -> ! {
     loop {
 
         Text::with_alignment(
-            "POLYPHONIZER\nDEMO",
+            "POLYPHONIZER",
             Point::new(disp.bounding_box().center().x, 10),
             character_style,
             Alignment::Center,
@@ -433,7 +433,7 @@ fn main() -> ! {
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
             lpf[n_voice].set_resonance(opts.resonance.value);
-            draw_voice(&mut disp, (30+37*n_voice) as u32, n_voice as u32, voice).ok();
+            draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
         }
 
 
@@ -472,7 +472,7 @@ fn main() -> ! {
                 }
             }
 
-            let vy: usize = 190;
+            let vy: usize = 205;
             for n in 0..opts_view.len() {
                 let mut font = font_small_grey;
                 if cur_opt == n {
@@ -511,10 +511,9 @@ fn main() -> ! {
             let mut s: String<64> = String::new();
             ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
             ufmt::uwrite!(&mut s, "{}ms\n", value % 1_000u32).ok();
-            ufmt::uwrite!(&mut s, "-apfelaudio-\n").ok();
             Text::with_alignment(
                 &s,
-                Point::new(5, 245),
+                Point::new(5, 255),
                 character_style,
                 Alignment::Left,
             )
@@ -530,7 +529,7 @@ fn main() -> ! {
                 let mut points: [Point; 64] = [Point::new(0, 0); 64];
                 for n in 0..points.len() {
                     points[n].x = n as i32;
-                    points[n].y = 100 + (scope.samples_dbl[n] >> 10) as i32;
+                    points[n].y = 30 + (scope.samples_dbl[n] >> 10) as i32;
                 }
                 Polyline::new(&points)
                     .into_styled(thin_stroke)
