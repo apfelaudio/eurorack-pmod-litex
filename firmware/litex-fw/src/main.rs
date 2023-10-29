@@ -12,6 +12,7 @@ use heapless::String;
 use embedded_midi::MidiIn;
 use core::arch::asm;
 use aligned_array::{Aligned, A4};
+use spin::mutex::SpinMutex;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
@@ -68,6 +69,10 @@ const BUF_SZ_SAMPLES_PER_IRQ: usize = BUF_SZ_SAMPLES / 2;
 
 static mut SCOPE: Option<Scope> = None;
 
+static mut STATE: Option<State> = None;
+
+static mut OPTIONS: Option<opt::Options> = None;
+
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
 // accessed by DMA that iterates across words!.
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
@@ -76,8 +81,10 @@ static mut LAST_IRQ: u32 = 0;
 static mut LAST_IRQ_LEN: u32 = 0;
 static mut LAST_IRQ_PERIOD: u32 = 0;
 
-const SCOPE_SAMPLES: usize = 1024;
+const SCOPE_SAMPLES: usize = 256;
 const SCOPE_SUBSAMPLE: usize = 2;
+
+const N_VOICES: usize = 4;
 
 struct Scope {
     samples: [i16; SCOPE_SAMPLES],
@@ -157,6 +164,9 @@ unsafe fn irq_handler() {
 
     if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
         // TODO: things here
+        if let Some(ref mut state) = STATE {
+            state.tick();
+        }
         let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
         peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
     }
@@ -164,6 +174,61 @@ unsafe fn irq_handler() {
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
     let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
     LAST_IRQ_LEN = trace_end - trace;
+}
+
+struct State<'a> {
+    midi_in: MidiIn<UartMidi>,
+    voice_manager: VoiceManager,
+    opts: &'a opt::Options,
+}
+
+impl<'a> State<'a> {
+    fn new(midi_in: MidiIn<UartMidi>,
+           opts: &'a opt::Options) -> Self {
+        State {
+            midi_in,
+            voice_manager: VoiceManager::new(),
+            opts,
+        }
+    }
+
+    fn tick(&mut self) {
+
+        unsafe {
+        let peripherals = pac::Peripherals::steal();
+
+        let shifter: [&dyn gw::PitchShift; 4] = [
+            &peripherals.PITCH_SHIFT0,
+            &peripherals.PITCH_SHIFT1,
+            &peripherals.PITCH_SHIFT2,
+            &peripherals.PITCH_SHIFT3,
+        ];
+
+        let lpf: [&dyn gw::KarlsenLpf; 4] = [
+            &peripherals.KARLSEN_LPF0,
+            &peripherals.KARLSEN_LPF1,
+            &peripherals.KARLSEN_LPF2,
+            &peripherals.KARLSEN_LPF3,
+        ];
+
+        let timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+
+        let time_adsr = (timer.uptime() / 60_000u64) as u32;
+
+        while let Ok(event) = self.midi_in.read() {
+            self.voice_manager.event(event, time_adsr);
+        }
+
+        self.voice_manager.tick(time_adsr, self.opts);
+
+        for n_voice in 0..N_VOICES {
+            let voice = &self.voice_manager.voices[n_voice];
+            shifter[n_voice].set_pitch(voice.pitch);
+            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+            lpf[n_voice].set_resonance(self.opts.resonance.value);
+        }
+        }
+    }
 }
 
 fn draw_voice<D>(d: &mut D, sy: u32, ix: u32, voice: &Voice) -> Result<(), D::Error>
@@ -279,25 +344,12 @@ fn main() -> ! {
 
     let pmod0 = peripherals.EURORACK_PMOD0;
 
-    let shifter: [&dyn gw::PitchShift; 4] = [
-        &peripherals.PITCH_SHIFT0,
-        &peripherals.PITCH_SHIFT1,
-        &peripherals.PITCH_SHIFT2,
-        &peripherals.PITCH_SHIFT3,
-    ];
-
-    let lpf: [&dyn gw::KarlsenLpf; 4] = [
-        &peripherals.KARLSEN_LPF0,
-        &peripherals.KARLSEN_LPF1,
-        &peripherals.KARLSEN_LPF2,
-        &peripherals.KARLSEN_LPF3,
-    ];
-
-    let mut opts = opt::Options::new();
+    unsafe {
+        OPTIONS = Some(opt::Options::new());
+    }
 
     let pca9635 = peripherals.PCA9635;
 
-    let uart_midi = UartMidi::new(peripherals.UART_MIDI);
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
@@ -331,10 +383,6 @@ fn main() -> ! {
 
     timer.delay_ms(1u16);
 
-    let mut midi_in = MidiIn::new(uart_midi);
-
-    let mut voice_manager = VoiceManager::new();
-
     disp.init(
            oled::Config::new(
                oled::ComScanDirection::RowZeroLast,
@@ -364,7 +412,7 @@ fn main() -> ! {
     let mut modif: bool = false;
     let mut btn_held_ms: u32 = 0;
 
-    timer.set_periodic_event(500);
+    timer.set_periodic_event(5); // 5ms tick
 
     unsafe {
         peripherals.SPI_DMA.spi_control_reg_address.write(
@@ -395,6 +443,15 @@ fn main() -> ! {
     }
 
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
+
+    let uart_midi = UartMidi::new(peripherals.UART_MIDI);
+    let midi_in =  MidiIn::new(uart_midi);
+
+    unsafe {
+        if let Some(ref opts) = OPTIONS {
+            STATE = Some(State::new( midi_in, &opts));
+        }
+    }
 
     loop {
 
@@ -427,24 +484,14 @@ fn main() -> ! {
         }
         enc_last = enc_now;
 
-        let time_adsr = (cycle_cnt / 60_000u64) as u32;
-
-        while let Ok(event) = midi_in.read() {
-            voice_manager.event(event, time_adsr);
+        unsafe {
+            if let Some(ref state) = STATE {
+                for n_voice in 0..=3 {
+                    let voice = &state.voice_manager.voices[n_voice];
+                    draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
+                }
+            }
         }
-
-        voice_manager.tick(time_adsr, &opts);
-
-        let mut v = [0u8; 4];
-        for n_voice in 0..=3 {
-            let voice = &voice_manager.voices[n_voice];
-            v[n_voice] = voice.note;
-            shifter[n_voice].set_pitch(voice.pitch);
-            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-            lpf[n_voice].set_resonance(opts.resonance.value);
-            draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
-        }
-
 
         if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
             btn_held_ms += td_us.unwrap() / 1000;
@@ -460,8 +507,8 @@ fn main() -> ! {
         }
 
 
-
-        {
+        unsafe {
+        if let Some(ref mut opts) = OPTIONS {
             let opts_view: [&mut dyn opt::OptionTrait; 5] = [
                 &mut opts.attack_ms,
                 &mut opts.decay_ms,
@@ -514,6 +561,7 @@ fn main() -> ! {
                     Alignment::Right,
                 ).draw(&mut disp).ok();
             }
+        }
         }
 
         if let Some(value) = td_us {

@@ -222,6 +222,7 @@ dependencies = [
  "paste",
  "riscv",
  "riscv-rt",
+ "spin 0.9.8",
  "ssd1322",
  "ufmt",
  "vexriscv",
