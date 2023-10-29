@@ -83,6 +83,7 @@ struct Scope {
     samples: [i16; SCOPE_SAMPLES],
     samples_dbl: [i16; SCOPE_SAMPLES],
     n_samples: usize,
+    trig_lo: bool
 }
 
 impl Scope {
@@ -91,6 +92,7 @@ impl Scope {
             samples: [0i16; SCOPE_SAMPLES],
             samples_dbl: [0i16; SCOPE_SAMPLES],
             n_samples: 0,
+            trig_lo: false
         }
     }
 
@@ -103,7 +105,11 @@ impl Scope {
                 buf_in[N_CHANNELS*i+3],
             ];
 
-            if  self.n_samples != SCOPE_SAMPLES {
+            self.trig_lo = self.trig_lo || x_in[0] < -4000;
+            let trigger = x_in[0] > 4000 && self.trig_lo;
+
+            if  (self.n_samples > 0 && self.n_samples != SCOPE_SAMPLES) ||
+                (self.n_samples == 0 && trigger) {
                 self.samples[self.n_samples] = x_in[0];
                 self.n_samples += 1
             }
@@ -116,6 +122,7 @@ impl Scope {
 
     fn reset(&mut self) {
         core::mem::swap(&mut self.samples, &mut self.samples_dbl);
+        self.trig_lo = false;
         self.n_samples = 0;
     }
 }
