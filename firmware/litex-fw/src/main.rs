@@ -155,6 +155,12 @@ unsafe fn irq_handler() {
         fence();
     }
 
+    if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
+        // TODO: things here
+        let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
+        peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
+    }
+
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
     let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
     LAST_IRQ_LEN = trace_end - trace;
@@ -358,6 +364,8 @@ fn main() -> ! {
     let mut modif: bool = false;
     let mut btn_held_ms: u32 = 0;
 
+    timer.set_periodic_event(500);
+
     unsafe {
         peripherals.SPI_DMA.spi_control_reg_address.write(
             |w| w.bits(litex_pac::OLED_SPI::PTR as u32));
@@ -376,7 +384,8 @@ fn main() -> ! {
         peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
 
         // Enable interrupts from DMA router (vexriscv specific register)
-        vexriscv::register::vmim::write(1 << (pac::Interrupt::DMA_ROUTER0 as usize));
+        vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
+                                        (1 << (pac::Interrupt::TIMER0 as usize)) );
 
         // Enable machine external interrupts (basically everything added on by LiteX).
         riscv::register::mie::set_mext();
