@@ -24,6 +24,7 @@ from rtl.eurorack_pmod_wrapper import *
 from rtl.dsp_wrapper import *
 from rtl.pca9635_master import *
 from rtl.spi_dma import Wishbone2SPIDMA
+from rtl.dma_router import *
 
 _io_eurolut_proto1 = [
     ("eurorack_pmod_p3b", 0,
@@ -139,13 +140,6 @@ def add_eurorack_pmod_shifter(soc, pads, mod_name):
     # Instantiate a EurorackPmod.
     eurorack_pmod_pads = soc.platform.request(pads)
     eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
-    # Pipe inputs straight to outputs.
-    soc.comb += [
-        eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
-        eurorack_pmod.cal_out1.eq(eurorack_pmod.cal_in1),
-        eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
-        eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
-    ]
 
     N_VOICES = 4
 
@@ -166,6 +160,8 @@ def add_eurorack_pmod_shifter(soc, pads, mod_name):
         soc.add_module(f"dc_block{voice}", dc_block)
 
     soc.add_module(mod_name, eurorack_pmod)
+
+    add_dma_router(soc, eurorack_pmod, output_capable=False)
 
 def add_oled(soc):
     pads = soc.platform.request("oled_spi")
@@ -301,7 +297,7 @@ def main():
     add_audio_clocks(soc)
 
     add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
-    add_eurorack_pmod_mirror(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
+    #add_eurorack_pmod_mirror(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
 
     add_oled(soc)
 

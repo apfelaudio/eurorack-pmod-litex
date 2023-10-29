@@ -31,12 +31,6 @@ fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
     loop {}
 }
 
-#[export_name = "DefaultHandler"]
-fn default_handler() {
-    _logger_write(b"default_handler\n");
-    loop {}
-}
-
 pub fn _logger_write(bytes: &[u8]) {
     unsafe {
         if let Some(writer) = &mut UART_WRITER {

@@ -11,10 +11,11 @@ use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use embedded_midi::MidiIn;
 use core::arch::asm;
+use aligned_array::{Aligned, A4};
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
-    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Line},
+    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Line, Polyline},
     mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
     prelude::*,
     text::{Alignment, Text},
@@ -32,7 +33,6 @@ use gw::*;
 use log::*;
 
 eurorack_pmod!(pac::EURORACK_PMOD0);
-eurorack_pmod!(pac::EURORACK_PMOD1);
 pitch_shift!(pac::PITCH_SHIFT0);
 pitch_shift!(pac::PITCH_SHIFT1);
 pitch_shift!(pac::PITCH_SHIFT2);
@@ -59,6 +59,98 @@ litex_hal::gpio! {
 
 litex_hal::spi! {
     SPI: (litex_pac::OLED_SPI, u8),
+}
+
+const N_CHANNELS: usize = 4;
+const BUF_SZ_WORDS: usize = 512;
+const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
+const BUF_SZ_SAMPLES_PER_IRQ: usize = BUF_SZ_SAMPLES / 2;
+
+static mut SCOPE: Option<Scope> = None;
+
+// MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
+// accessed by DMA that iterates across words!.
+static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
+
+static mut LAST_IRQ: u32 = 0;
+static mut LAST_IRQ_LEN: u32 = 0;
+static mut LAST_IRQ_PERIOD: u32 = 0;
+
+const SCOPE_SAMPLES: usize = 1024;
+const SCOPE_SUBSAMPLE: usize = 2;
+
+struct Scope {
+    samples: [i16; SCOPE_SAMPLES],
+    samples_dbl: [i16; SCOPE_SAMPLES],
+    n_samples: usize,
+}
+
+impl Scope {
+    fn new() -> Self {
+        Scope {
+            samples: [0i16; SCOPE_SAMPLES],
+            samples_dbl: [0i16; SCOPE_SAMPLES],
+            n_samples: 0,
+        }
+    }
+
+    fn feed(&mut self, buf_in: &[i16]) {
+        for i in 0..(buf_in.len()/N_CHANNELS) {
+            let x_in: [i16; N_CHANNELS] = [
+                buf_in[N_CHANNELS*i+0],
+                buf_in[N_CHANNELS*i+1],
+                buf_in[N_CHANNELS*i+2],
+                buf_in[N_CHANNELS*i+3],
+            ];
+
+            if  self.n_samples != SCOPE_SAMPLES {
+                self.samples[self.n_samples] = x_in[0];
+                self.n_samples += 1
+            }
+        }
+    }
+
+    fn full(&mut self) -> bool {
+        self.n_samples == SCOPE_SAMPLES
+    }
+
+    fn reset(&mut self) {
+        self.n_samples = 0;
+        core::mem::swap(&mut self.samples, &mut self.samples_dbl);
+    }
+}
+
+#[export_name = "DefaultHandler"]
+unsafe fn irq_handler() {
+    let pending_irq = vexriscv::register::vmip::read();
+    let peripherals = pac::Peripherals::steal();
+
+    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
+    let trace = peripherals.TIMER0.uptime_cycles0.read().bits();
+    LAST_IRQ_PERIOD = trace - LAST_IRQ;
+    LAST_IRQ = trace;
+
+    if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
+        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
+        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
+
+        if let Some(ref mut scope) = SCOPE {
+            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
+                scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)])
+            }
+            if offset as usize == (BUF_SZ_WORDS-1) {
+                scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)])
+            }
+        }
+
+        peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
+
+        fence();
+    }
+
+    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
+    let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
+    LAST_IRQ_LEN = trace_end - trace;
 }
 
 fn draw_voice<D>(d: &mut D, sy: u32, ix: u32, voice: &Voice) -> Result<(), D::Error>
@@ -173,7 +265,6 @@ fn main() -> ! {
     log::info!("hello from litex-fw!");
 
     let pmod0 = peripherals.EURORACK_PMOD0;
-    let pmod1 = peripherals.EURORACK_PMOD1;
 
     let shifter: [&dyn gw::PitchShift; 4] = [
         &peripherals.PITCH_SHIFT0,
@@ -199,11 +290,9 @@ fn main() -> ! {
 
     pca9635.reset_line(true);
     pmod0.reset_line(true);
-    pmod1.reset_line(true);
     timer.delay_ms(10u32);
     pca9635.reset_line(false);
     pmod0.reset_line(false);
-    pmod1.reset_line(false);
 
     let dc = CTL { index: 0 };
     let mut rstn = CTL { index: 1 };
@@ -270,6 +359,26 @@ fn main() -> ! {
         peripherals.SPI_DMA.spi_mosi_reg_address.write(
             |w| w.bits(litex_pac::OLED_SPI::PTR as u32 + 0x08));
     }
+
+    unsafe {
+        SCOPE = Some(Scope::new());
+
+        peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
+        peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
+        peripherals.DMA_ROUTER0.enable.write(|w| w.bits(1u32));
+        peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
+
+        // Enable interrupts from DMA router (vexriscv specific register)
+        vexriscv::register::vmim::write(1 << (pac::Interrupt::DMA_ROUTER0 as usize));
+
+        // Enable machine external interrupts (basically everything added on by LiteX).
+        riscv::register::mie::set_mext();
+
+        // Finally enable interrupts
+        riscv::interrupt::enable();
+    }
+
+    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
     loop {
 
@@ -405,6 +514,22 @@ fn main() -> ! {
             .draw(&mut disp).ok();
         }
 
+        unsafe {
+            if let Some(ref mut scope) = SCOPE {
+                if scope.full() {
+                    scope.reset();
+                    let mut points: [Point; 64] = [Point::new(0, 0); 64];
+                    for n in 0..points.len() {
+                        points[n].x = n as i32;
+                        points[n].y = 100 + (scope.samples_dbl[n] >> 10) as i32;
+                    }
+                    Polyline::new(&points)
+                        .into_styled(thin_stroke)
+                        .draw(&mut disp).ok();
+                }
+            }
+        }
+
         let fb = disp.swap_clear();
         unsafe {
             fence();
@@ -423,5 +548,18 @@ fn main() -> ! {
         cycle_cnt = cycle_cnt_now;
         let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
         td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+
+        /*
+        unsafe {
+            for i in 0..4 {
+                log::info!("{:x}@{:x}", i, BUF_IN[i]);
+            }
+            log::info!("irq_period: {}", LAST_IRQ_PERIOD);
+            log::info!("irq_len: {}", LAST_IRQ_LEN);
+            if LAST_IRQ_PERIOD != 0 {
+                log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+            }
+        }
+        */
     }
 }
