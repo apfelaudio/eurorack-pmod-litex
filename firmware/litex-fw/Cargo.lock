@@ -189,6 +189,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "irq"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fde4043982dac20deb036c56edf2b1928614509334ee6c392f7d8caffa999a3"
+
+[[package]]
 name = "itertools"
 version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -214,8 +220,10 @@ dependencies = [
  "embedded-graphics",
  "embedded-midi",
  "heapless",
+ "irq",
  "lazy_static",
  "litex-hal",
+ "litex-interrupt",
  "litex-pac",
  "micromath",
  "midi-types",
@@ -236,6 +244,10 @@ dependencies = [
  "embedded-hal",
  "nb 1.1.0",
 ]
+
+[[package]]
+name = "litex-interrupt"
+version = "0.1.0"
 
 [[package]]
 name = "litex-pac"

@@ -13,6 +13,8 @@ use embedded_midi::MidiIn;
 use core::arch::asm;
 use aligned_array::{Aligned, A4};
 use spin::mutex::SpinMutex;
+use irq::{handler, scope, scoped_interrupts};
+use litex_interrupt::return_as_is;
 
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
@@ -65,13 +67,6 @@ litex_hal::spi! {
 const N_CHANNELS: usize = 4;
 const BUF_SZ_WORDS: usize = 512;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
-const BUF_SZ_SAMPLES_PER_IRQ: usize = BUF_SZ_SAMPLES / 2;
-
-static mut SCOPE: Option<Scope> = None;
-
-static mut STATE: Option<State> = None;
-
-static mut OPTIONS: Option<opt::Options> = None;
 
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
 // accessed by DMA that iterates across words!.
@@ -82,20 +77,48 @@ static mut LAST_IRQ_LEN: u32 = 0;
 static mut LAST_IRQ_PERIOD: u32 = 0;
 
 const SCOPE_SAMPLES: usize = 256;
-const SCOPE_SUBSAMPLE: usize = 2;
 
 const N_VOICES: usize = 4;
 
-struct Scope {
+fn get_shifters(p: &pac::Peripherals) -> [&dyn gw::PitchShift; 4] {
+    [
+        &p.PITCH_SHIFT0,
+        &p.PITCH_SHIFT1,
+        &p.PITCH_SHIFT2,
+        &p.PITCH_SHIFT3,
+    ]
+}
+
+fn get_lpfs(p: &pac::Peripherals) -> [&dyn gw::KarlsenLpf; 4] {
+    [
+        &p.KARLSEN_LPF0,
+        &p.KARLSEN_LPF1,
+        &p.KARLSEN_LPF2,
+        &p.KARLSEN_LPF3,
+    ]
+}
+
+scoped_interrupts! {
+
+    #[allow(non_camel_case_types)]
+    enum Interrupt {
+        DMA_ROUTER0,
+        TIMER0,
+    }
+
+    use #[return_as_is];
+}
+
+struct OScope {
     samples: [i16; SCOPE_SAMPLES],
     samples_dbl: [i16; SCOPE_SAMPLES],
     n_samples: usize,
     trig_lo: bool
 }
 
-impl Scope {
+impl OScope {
     fn new() -> Self {
-        Scope {
+        OScope {
             samples: [0i16; SCOPE_SAMPLES],
             samples_dbl: [0i16; SCOPE_SAMPLES],
             n_samples: 0,
@@ -106,7 +129,7 @@ impl Scope {
     fn feed(&mut self, buf_in: &[i16]) {
         for i in 0..(buf_in.len()/N_CHANNELS) {
             let x_in: [i16; N_CHANNELS] = [
-                buf_in[N_CHANNELS*i+0],
+                buf_in[N_CHANNELS*i],
                 buf_in[N_CHANNELS*i+1],
                 buf_in[N_CHANNELS*i+2],
                 buf_in[N_CHANNELS*i+3],
@@ -134,6 +157,35 @@ impl Scope {
     }
 }
 
+fn dma_router0_handler(scope: &SpinMutex<OScope>) {
+    unsafe {
+        let peripherals = pac::Peripherals::steal();
+        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
+
+        if let Some(ref mut scope) = scope.try_lock() {
+            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
+                scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)])
+            }
+            if offset as usize == (BUF_SZ_WORDS-1) {
+                scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)])
+            }
+        }
+    }
+}
+
+fn timer0_handler(state: &SpinMutex<State>, opts: &SpinMutex<opt::Options>) {
+    // WARN: Timer borrowed in multiple contexts!
+    // Maybe should lock on this
+    let peripherals = unsafe { pac::Peripherals::steal() };
+    let timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+    let uptime_ms = (timer.uptime() / ((SYSTEM_CLOCK_FREQUENCY as u64)/1000u64)) as u32;
+
+    if let (Some(ref mut state),
+            Some(ref opts)) = (state.try_lock(), opts.try_lock()) {
+        state.tick(opts, uptime_ms);
+    }
+}
+
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
     let pending_irq = vexriscv::register::vmip::read();
@@ -145,30 +197,17 @@ unsafe fn irq_handler() {
     LAST_IRQ = trace;
 
     if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
-        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
-
-        if let Some(ref mut scope) = SCOPE {
-            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-                scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)])
-            }
-            if offset as usize == (BUF_SZ_WORDS-1) {
-                scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)])
-            }
-        }
-
+        DMA_ROUTER0();
         peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
-
         fence();
     }
 
     if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
-        // TODO: things here
-        if let Some(ref mut state) = STATE {
-            state.tick();
-        }
         let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
+        TIMER0();
         peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
+        fence();
     }
 
     peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
@@ -176,57 +215,40 @@ unsafe fn irq_handler() {
     LAST_IRQ_LEN = trace_end - trace;
 }
 
-struct State<'a> {
+struct State {
     midi_in: MidiIn<UartMidi>,
     voice_manager: VoiceManager,
-    opts: &'a opt::Options,
 }
 
-impl<'a> State<'a> {
-    fn new(midi_in: MidiIn<UartMidi>,
-           opts: &'a opt::Options) -> Self {
+impl State {
+    fn new(midi_in: MidiIn<UartMidi>) -> Self {
         State {
             midi_in,
             voice_manager: VoiceManager::new(),
-            opts,
         }
     }
 
-    fn tick(&mut self) {
+    fn tick(&mut self, opts: &opt::Options, uptime_ms: u32) {
 
         unsafe {
-        let peripherals = pac::Peripherals::steal();
+            let peripherals = pac::Peripherals::steal();
 
-        let shifter: [&dyn gw::PitchShift; 4] = [
-            &peripherals.PITCH_SHIFT0,
-            &peripherals.PITCH_SHIFT1,
-            &peripherals.PITCH_SHIFT2,
-            &peripherals.PITCH_SHIFT3,
-        ];
+            let shifter = get_shifters(&peripherals);
 
-        let lpf: [&dyn gw::KarlsenLpf; 4] = [
-            &peripherals.KARLSEN_LPF0,
-            &peripherals.KARLSEN_LPF1,
-            &peripherals.KARLSEN_LPF2,
-            &peripherals.KARLSEN_LPF3,
-        ];
+            let lpf = get_lpfs(&peripherals);
 
-        let timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+            while let Ok(event) = self.midi_in.read() {
+                self.voice_manager.event(event, uptime_ms);
+            }
 
-        let time_adsr = (timer.uptime() / 60_000u64) as u32;
+            self.voice_manager.tick(uptime_ms, opts);
 
-        while let Ok(event) = self.midi_in.read() {
-            self.voice_manager.event(event, time_adsr);
-        }
-
-        self.voice_manager.tick(time_adsr, self.opts);
-
-        for n_voice in 0..N_VOICES {
-            let voice = &self.voice_manager.voices[n_voice];
-            shifter[n_voice].set_pitch(voice.pitch);
-            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-            lpf[n_voice].set_resonance(self.opts.resonance.value);
-        }
+            for n_voice in 0..N_VOICES {
+                let voice = &self.voice_manager.voices[n_voice];
+                shifter[n_voice].set_pitch(voice.pitch);
+                lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+                lpf[n_voice].set_resonance(opts.resonance.value);
+            }
         }
     }
 }
@@ -335,6 +357,103 @@ fn fence() {
     }
 }
 
+struct LedBreathe {
+    pca9635: pac::PCA9635,
+    v: u8,
+}
+
+impl LedBreathe {
+    fn new(pca9635: pac::PCA9635) -> Self {
+        Self {
+            pca9635,
+            v: 0u8,
+        }
+    }
+
+    fn tick(&mut self) {
+        self.v += 3;
+        for i in 0..=15 {
+            let this_v = self.v+i*16;
+            if this_v < 128 {
+                self.pca9635.led(i.into(), this_v);
+            } else {
+                self.pca9635.led(i.into(), 128-this_v);
+            }
+        }
+    }
+}
+
+struct Encoder {
+    encoder: pac::ROTARY_ENCODER,
+    button: pac::ENCODER_BUTTON,
+    enc_last: u32,
+    btn_held_ms: u32,
+    short_press: bool,
+    long_press: bool,
+    ticks_since_last_read: i32,
+}
+
+impl Encoder {
+    // NOTE: not easily reuseable pecause of pac naming?
+    fn new(encoder: pac::ROTARY_ENCODER, button: pac::ENCODER_BUTTON) -> Self {
+        let enc_last: u32 = encoder.csr_state.read().bits() >> 2;
+        Self {
+            encoder,
+            button,
+            enc_last,
+            btn_held_ms: 0,
+            short_press: false,
+            long_press: false,
+            ticks_since_last_read: 0,
+        }
+    }
+
+    fn update_ticks(&mut self, uptime_ms: u32) {
+        let enc_now: u32 = self.encoder.csr_state.read().bits() >> 2;
+        let mut enc_delta: i32 = (enc_now as i32) - (self.enc_last as i32);
+        if enc_delta > 10 {
+            enc_delta = -1;
+        }
+        if enc_delta < -10 {
+            enc_delta = 1;
+        }
+        self.enc_last = enc_now;
+
+        if self.button.in_.read().bits() != 0 {
+            self.btn_held_ms += uptime_ms;
+        } else {
+            if self.btn_held_ms > 0 {
+                self.short_press = true;
+            }
+            self.btn_held_ms = 0;
+        }
+
+        if self.btn_held_ms > 3000 {
+            self.long_press = true;
+        }
+
+        self.ticks_since_last_read += enc_delta;
+    }
+
+    fn short_press(&mut self) -> bool {
+        let result = self.short_press;
+        self.short_press = false;
+        result
+    }
+
+    fn long_press(&mut self) -> bool {
+        let result = self.long_press;
+        self.short_press = false;
+        result
+    }
+
+    fn ticks_since_last_read(&mut self) -> i32 {
+        let result = self.ticks_since_last_read;
+        self.ticks_since_last_read = 0;
+        result
+    }
+}
+
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
@@ -343,10 +462,6 @@ fn main() -> ! {
     log::info!("hello from litex-fw!");
 
     let pmod0 = peripherals.EURORACK_PMOD0;
-
-    unsafe {
-        OPTIONS = Some(opt::Options::new());
-    }
 
     let pca9635 = peripherals.PCA9635;
 
@@ -403,14 +518,10 @@ fn main() -> ! {
 
     let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
-    let mut v = 0u8;
 
     let mut cur_opt: usize = 0;
 
-    let mut enc_last: u32 = peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2;
-
     let mut modif: bool = false;
-    let mut btn_held_ms: u32 = 0;
 
     timer.set_periodic_event(5); // 5ms tick
 
@@ -424,7 +535,6 @@ fn main() -> ! {
     }
 
     unsafe {
-        SCOPE = Some(Scope::new());
 
         peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
         peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
@@ -442,188 +552,171 @@ fn main() -> ! {
         riscv::interrupt::enable();
     }
 
+    let mut breathe = LedBreathe::new(pca9635);
+    let mut encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
+
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
 
-    unsafe {
-        if let Some(ref opts) = OPTIONS {
-            STATE = Some(State::new( midi_in, &opts));
-        }
-    }
+    let opts = SpinMutex::new(opt::Options::new());
+    let state = SpinMutex::new(State::new(midi_in));
+    let oscope = SpinMutex::new(OScope::new());
 
-    loop {
+    handler!(dma_router0 = || dma_router0_handler(&oscope));
+    handler!(timer0 = || timer0_handler(&state, &opts));
 
-        Text::with_alignment(
-            "POLYPHONIZER",
-            Point::new(disp.bounding_box().center().x, 10),
-            character_style,
-            Alignment::Center,
-        )
-        .draw(&mut disp).ok();
+    scope(|scope| {
 
-        v += 3;
+        scope.register(Interrupt::DMA_ROUTER0, dma_router0);
+        scope.register(Interrupt::TIMER0, timer0);
 
-        for i in 0..=15 {
-            let this_v = v+i*16;
-            if this_v < 128 {
-                pca9635.led(i.into(), this_v);
-            } else {
-                pca9635.led(i.into(), 128-this_v);
-            }
-        }
+        loop {
 
-        let enc_now: u32 = peripherals.ROTARY_ENCODER.csr_state.read().bits() >> 2;
-        let mut enc_delta: i32 = (enc_now as i32) - (enc_last as i32);
-        if enc_delta > 10 {
-            enc_delta = -1;
-        }
-        if enc_delta < -10 {
-            enc_delta = 1;
-        }
-        enc_last = enc_now;
+            let uptime_ms = (timer.uptime() / ((SYSTEM_CLOCK_FREQUENCY as u64)/1000u64)) as u32;
 
-        unsafe {
-            if let Some(ref state) = STATE {
+            Text::with_alignment(
+                "POLYPHONIZER",
+                Point::new(disp.bounding_box().center().x, 10),
+                character_style,
+                Alignment::Center,
+            )
+            .draw(&mut disp).ok();
+
+            // These should move to TIMER0 interrupt?
+            breathe.tick();
+            encoder.update_ticks(uptime_ms);
+
+            {
+                let state = state.lock();
                 for n_voice in 0..=3 {
                     let voice = &state.voice_manager.voices[n_voice];
                     draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
                 }
             }
-        }
 
-        if peripherals.ENCODER_BUTTON.in_.read().bits() != 0 {
-            btn_held_ms += td_us.unwrap() / 1000;
-        } else {
-            if btn_held_ms > 0 {
+            if encoder.short_press() {
                 modif = !modif;
             }
-            btn_held_ms = 0;
-        }
 
-        if btn_held_ms > 3000 {
-            peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
-        }
-
-
-        unsafe {
-        if let Some(ref mut opts) = OPTIONS {
-            let opts_view: [&mut dyn opt::OptionTrait; 5] = [
-                &mut opts.attack_ms,
-                &mut opts.decay_ms,
-                &mut opts.release_ms,
-                &mut opts.resonance,
-                &mut opts.delay_len,
-            ];
-
-
-            if !modif {
-                if enc_delta > 0 && cur_opt < opts_view.len() - 1 {
-                    cur_opt += 1;
-                }
-
-                if enc_delta < 0 && cur_opt > 0{
-                    cur_opt -= 1;
-                }
+            if encoder.long_press() {
+                peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
             }
 
-            let vy: usize = 205;
-            for n in 0..opts_view.len() {
-                let mut font = font_small_grey;
-                if cur_opt == n {
-                    font = font_small_white;
-                    if modif {
-                        Text::with_alignment(
-                            "-",
-                            Point::new(62, (vy+10*n) as i32),
-                            font,
-                            Alignment::Left,
-                        ).draw(&mut disp).ok();
-                        if enc_delta > 0 {
-                            opts_view[n].tick_up();
-                        }
-                        if enc_delta < 0 {
-                            opts_view[n].tick_down();
-                        }
+
+            {
+                let mut opts = opts.lock();
+                let mut opts_view = opts.view_mut();
+
+                let encoder_ticks = encoder.ticks_since_last_read();
+                if modif {
+                    if encoder_ticks > 0 {
+                        opts_view[cur_opt].tick_up();
+                    }
+                    if encoder_ticks < 0 {
+                        opts_view[cur_opt].tick_down();
+                    }
+                } else {
+                    let sel_opt = (cur_opt as i32) + encoder_ticks;
+                    if sel_opt >= opts_view.len() as i32 {
+                        cur_opt = opts_view.len()-1;
+                    }
+                    if sel_opt < 0 {
+                        cur_opt = 0;
                     }
                 }
-                Text::with_alignment(
-                    opts_view[n].name(),
-                    Point::new(5, (vy+10*n) as i32),
-                    font,
-                    Alignment::Left,
-                ).draw(&mut disp).ok();
-                Text::with_alignment(
-                    &opts_view[n].value(),
-                    Point::new(60, (vy+10*n) as i32),
-                    font,
-                    Alignment::Right,
-                ).draw(&mut disp).ok();
+
+                let vy: usize = 205;
+                for (n, opt) in opts_view.iter_mut().enumerate() {
+                    let mut font = font_small_grey;
+                    if cur_opt == n {
+                        font = font_small_white;
+                        if modif {
+                            Text::with_alignment(
+                                "-",
+                                Point::new(62, (vy+10*n) as i32),
+                                font,
+                                Alignment::Left,
+                            ).draw(&mut disp).ok();
+                        }
+                    }
+                    Text::with_alignment(
+                        opt.name(),
+                        Point::new(5, (vy+10*n) as i32),
+                        font,
+                        Alignment::Left,
+                    ).draw(&mut disp).ok();
+                    Text::with_alignment(
+                        &opt.value(),
+                        Point::new(60, (vy+10*n) as i32),
+                        font,
+                        Alignment::Right,
+                    ).draw(&mut disp).ok();
+                }
             }
-        }
-        }
 
-        if let Some(value) = td_us {
-            let mut s: String<64> = String::new();
-            ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
-            ufmt::uwrite!(&mut s, "{}ms\n", value % 1_000u32).ok();
-            Text::with_alignment(
-                &s,
-                Point::new(5, 255),
-                character_style,
-                Alignment::Left,
-            )
-            .draw(&mut disp).ok();
-        }
+            if let Some(value) = td_us {
+                let mut s: String<64> = String::new();
+                ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
+                ufmt::uwrite!(&mut s, "{}ms\n", value % 1_000u32).ok();
+                Text::with_alignment(
+                    &s,
+                    Point::new(5, 255),
+                    character_style,
+                    Alignment::Left,
+                )
+                .draw(&mut disp).ok();
+            }
 
-        unsafe {
-            if let Some(ref mut scope) = SCOPE {
+            {
+                let mut scope = oscope.lock();
                 if scope.full() {
                     // samples_dbl can only ever update here
                     scope.reset();
                 }
                 let mut points: [Point; 64] = [Point::new(0, 0); 64];
-                for n in 0..points.len() {
-                    points[n].x = n as i32;
-                    points[n].y = 30 + (scope.samples_dbl[n] >> 10) as i32;
+                for (n, point) in points.iter_mut().enumerate() {
+                    point.x = n as i32;
+                    point.y = 30 + (scope.samples_dbl[n] >> 10) as i32;
                 }
                 Polyline::new(&points)
                     .into_styled(thin_stroke)
                     .draw(&mut disp).ok();
             }
-        }
 
-        let fb = disp.swap_clear();
-        unsafe {
-            fence();
-            while peripherals.SPI_DMA.done.read().bits() == 0 {
-                // Don't start to DMA a new framebuffer if we're still
-                // pushing through the last one.
+            let fb = disp.swap_clear();
+            unsafe {
+                fence();
+                while peripherals.SPI_DMA.done.read().bits() == 0 {
+                    // Don't start to DMA a new framebuffer if we're still
+                    // pushing through the last one.
+                }
+                peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
+                peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
+                peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
+                peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
             }
-            peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
-            peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
-            peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
-            peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
-        }
 
-        let cycle_cnt_now = timer.uptime();
-        let cycle_cnt_last = cycle_cnt;
-        cycle_cnt = cycle_cnt_now;
-        let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
-        td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+            let cycle_cnt_now = timer.uptime();
+            let cycle_cnt_last = cycle_cnt;
+            cycle_cnt = cycle_cnt_now;
+            let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
+            td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
 
-        /*
-        unsafe {
-            for i in 0..4 {
-                log::info!("{:x}@{:x}", i, BUF_IN[i]);
+            /*
+            unsafe {
+                for i in 0..4 {
+                    log::info!("{:x}@{:x}", i, BUF_IN[i]);
+                }
+                log::info!("irq_period: {}", LAST_IRQ_PERIOD);
+                log::info!("irq_len: {}", LAST_IRQ_LEN);
+                if LAST_IRQ_PERIOD != 0 {
+                    log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
+                }
             }
-            log::info!("irq_period: {}", LAST_IRQ_PERIOD);
-            log::info!("irq_len: {}", LAST_IRQ_LEN);
-            if LAST_IRQ_PERIOD != 0 {
-                log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
-            }
+            */
         }
-        */
-    }
+    })
+
 }

@@ -65,6 +65,28 @@ impl Options {
             },
         }
     }
+
+    #[allow(dead_code)]
+    pub fn view(&self) -> [& dyn OptionTrait; 5] {
+        [
+            &self.attack_ms,
+            &self.decay_ms,
+            &self.release_ms,
+            &self.resonance,
+            &self.delay_len,
+        ]
+    }
+
+    #[allow(dead_code)]
+    pub fn view_mut(&mut self) -> [&mut dyn OptionTrait; 5] {
+        [
+            &mut self.attack_ms,
+            &mut self.decay_ms,
+            &mut self.release_ms,
+            &mut self.resonance,
+            &mut self.delay_len,
+        ]
+    }
 }
 
 impl<T: Copy +
