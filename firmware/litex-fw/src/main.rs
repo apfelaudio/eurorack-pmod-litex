@@ -22,7 +22,7 @@ use embedded_graphics::{
     primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Line, Polyline},
     mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
     prelude::*,
-    text::{Alignment, Text},
+    text::{Alignment, Text, renderer::TextRenderer},
 };
 
 use ssd1322 as oled;
@@ -609,6 +609,25 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
     disp
 }
 
+fn draw_ms<D, S, C>(d: &mut D, us: u32, pos: Point, style: S) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = C>,
+    S: TextRenderer<Color = C>,
+{
+    let mut s: String<64> = String::new();
+    ufmt::uwrite!(&mut s, "{}.", us / 1_000u32).ok();
+    ufmt::uwrite!(&mut s, "{}ms\n", us % 1_000u32).ok();
+    Text::with_alignment(
+        &s,
+        pos,
+        style,
+        Alignment::Left,
+    )
+    .draw(d)?;
+
+    Ok(())
+}
+
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
@@ -633,7 +652,7 @@ fn main() -> ! {
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
     let mut cycle_cnt = timer.uptime();
-    let mut td_us: Option<u32> = None;
+    let mut time_delta_us: Option<u32> = None;
 
     timer.set_periodic_event(5); // 5ms tick
 
@@ -701,17 +720,8 @@ fn main() -> ! {
 
             draw_options(&mut disp, &opts).ok();
 
-            if let Some(value) = td_us {
-                let mut s: String<64> = String::new();
-                ufmt::uwrite!(&mut s, "{}.", value / 1_000u32).ok();
-                ufmt::uwrite!(&mut s, "{}ms\n", value % 1_000u32).ok();
-                Text::with_alignment(
-                    &s,
-                    Point::new(5, 255),
-                    character_style,
-                    Alignment::Left,
-                )
-                .draw(&mut disp).ok();
+            if let Some(value) = time_delta_us {
+                draw_ms(&mut disp, value, Point::new(5, 255), character_style).ok();
             }
 
             {
@@ -739,11 +749,13 @@ fn main() -> ! {
             spi_dma.block();
             spi_dma.transfer(fb.as_ptr(), fb.len());
 
-            let cycle_cnt_now = timer.uptime();
-            let cycle_cnt_last = cycle_cnt;
-            cycle_cnt = cycle_cnt_now;
-            let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
-            td_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+            {
+                let cycle_cnt_now = timer.uptime();
+                let cycle_cnt_last = cycle_cnt;
+                cycle_cnt = cycle_cnt_now;
+                let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
+                time_delta_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
+            }
 
             /*
             unsafe {
