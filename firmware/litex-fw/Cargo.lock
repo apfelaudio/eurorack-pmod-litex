@@ -217,6 +217,7 @@ name = "litex-fw"
 version = "0.1.0"
 dependencies = [
  "aligned-array",
+ "critical-section",
  "embedded-graphics",
  "embedded-midi",
  "heapless",
@@ -230,7 +231,6 @@ dependencies = [
  "paste",
  "riscv",
  "riscv-rt",
- "spin 0.9.8",
  "ssd1322",
  "ufmt",
  "vexriscv",

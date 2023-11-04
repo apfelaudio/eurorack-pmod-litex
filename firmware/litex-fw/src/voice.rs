@@ -15,6 +15,7 @@ pub enum VoiceState {
     Release(u32),
 }
 
+#[derive(Clone)]
 pub struct AdsrParams {
     attack_ms: u32,
     decay_ms: u32,
@@ -23,6 +24,7 @@ pub struct AdsrParams {
     sustain_amplitude: f32,
 }
 
+#[derive(Clone)]
 pub struct Voice {
     pub note: u8,
     pub start_time_ms: u32,

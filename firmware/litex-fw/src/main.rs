@@ -12,7 +12,8 @@ use heapless::String;
 use embedded_midi::MidiIn;
 use core::arch::asm;
 use aligned_array::{Aligned, A4};
-use spin::mutex::SpinMutex;
+use core::cell::RefCell;
+use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
@@ -157,33 +158,38 @@ impl OScope {
     }
 }
 
-fn dma_router0_handler(scope: &SpinMutex<OScope>) {
+fn dma_router0_handler(scope: &Mutex<RefCell<OScope>>) {
     unsafe {
         let peripherals = pac::Peripherals::steal();
-        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
+        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits() as usize;
 
-        if let Some(ref mut scope) = scope.try_lock() {
-            if offset as usize == ((BUF_SZ_WORDS/2)+1) {
-                scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)])
+        critical_section::with(|cs| {
+            let scope = &mut scope.borrow_ref_mut(cs);
+            let mid = (BUF_SZ_WORDS/2)+1;
+            let end = BUF_SZ_WORDS-1;
+            if mid <= offset && offset <= mid + BUF_SZ_SAMPLES/4 {
+                scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)]);
+            } else if end == offset || offset < BUF_SZ_SAMPLES/4 {
+                scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)]);
+            } else {
+                panic!("latency too high into dma_router0?");
             }
-            if offset as usize == (BUF_SZ_WORDS-1) {
-                scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)])
-            }
-        }
+        });
     }
 }
 
-fn timer0_handler(state: &SpinMutex<State>, opts: &SpinMutex<opt::Options>) {
+fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Options>>) {
     // WARN: Timer borrowed in multiple contexts!
     // Maybe should lock on this
     let peripherals = unsafe { pac::Peripherals::steal() };
     let timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
     let uptime_ms = (timer.uptime() / ((SYSTEM_CLOCK_FREQUENCY as u64)/1000u64)) as u32;
 
-    if let (Some(ref mut state),
-            Some(ref opts)) = (state.try_lock(), opts.try_lock()) {
+    critical_section::with(|cs| {
+        let state = &mut state.borrow_ref_mut(cs);
+        let opts = &opts.borrow_ref(cs);
         state.tick(opts, uptime_ms);
-    }
+    });
 }
 
 #[export_name = "DefaultHandler"]
@@ -599,9 +605,9 @@ fn main() -> ! {
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
 
-    let opts = SpinMutex::new(opt::Options::new());
-    let state = SpinMutex::new(State::new(midi_in));
-    let oscope = SpinMutex::new(OScope::new());
+    let opts = Mutex::new(RefCell::new(opt::Options::new()));
+    let state = Mutex::new(RefCell::new(State::new(midi_in)));
+    let oscope = Mutex::new(RefCell::new(OScope::new()));
 
     handler!(dma_router0 = || dma_router0_handler(&oscope));
     handler!(timer0 = || timer0_handler(&state, &opts));
@@ -628,9 +634,11 @@ fn main() -> ! {
             encoder.update_ticks(uptime_ms);
 
             {
-                let state = state.lock();
-                for n_voice in 0..=3 {
-                    let voice = &state.voice_manager.voices[n_voice];
+                let mut voices_ro: Option<[Voice; N_VOICES]> = None;
+                critical_section::with(|cs| {
+                    voices_ro = Some(state.borrow_ref(cs).voice_manager.voices.clone());
+                });
+                for (n_voice, voice) in voices_ro.unwrap().iter().enumerate() {
                     draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
                 }
             }
@@ -645,18 +653,29 @@ fn main() -> ! {
 
 
             {
-                let mut opts = opts.lock();
-                let mut opts_view = opts.view_mut();
 
                 let encoder_ticks = encoder.ticks_since_last_read();
-                if modif {
-                    if encoder_ticks > 0 {
-                        opts_view[cur_opt].tick_up();
+                let mut opts_ro: Option<opt::Options> = None;
+
+                critical_section::with(|cs| {
+                    let opts = &mut opts.borrow_ref_mut(cs);
+                    let opts_view = opts.view_mut();
+                    if modif {
+                        if encoder_ticks > 0 {
+                            opts_view[cur_opt].tick_up();
+                        }
+                        if encoder_ticks < 0 {
+                            opts_view[cur_opt].tick_down();
+                        }
                     }
-                    if encoder_ticks < 0 {
-                        opts_view[cur_opt].tick_down();
-                    }
-                } else {
+                    opts_ro = Some(opts.clone());
+                });
+
+                // Should always succeed if the above CS runs.
+                let opts = opts_ro.unwrap();
+                let opts_view = opts.view();
+
+                if !modif {
                     let sel_opt = (cur_opt as i32) + encoder_ticks;
                     if sel_opt >= opts_view.len() as i32 {
                         cur_opt = opts_view.len()-1;
@@ -667,7 +686,7 @@ fn main() -> ! {
                 }
 
                 let vy: usize = 205;
-                for (n, opt) in opts_view.iter_mut().enumerate() {
+                for (n, opt) in opts_view.iter().enumerate() {
                     let mut font = font_small_grey;
                     if cur_opt == n {
                         font = font_small_white;
@@ -709,15 +728,20 @@ fn main() -> ! {
             }
 
             {
-                let mut scope = oscope.lock();
-                if scope.full() {
-                    // samples_dbl can only ever update here
-                    scope.reset();
-                }
+
+                let mut samples = [0i16; SCOPE_SAMPLES];
+                critical_section::with(|cs| {
+                    let scope = &mut oscope.borrow_ref_mut(cs);
+                    if scope.full() {
+                        // samples_dbl can only ever update here
+                        scope.reset();
+                    }
+                    samples = scope.samples_dbl;
+                });
                 let mut points: [Point; 64] = [Point::new(0, 0); 64];
                 for (n, point) in points.iter_mut().enumerate() {
                     point.x = n as i32;
-                    point.y = 30 + (scope.samples_dbl[n] >> 10) as i32;
+                    point.y = 30 + (samples[n] >> 10) as i32;
                 }
                 Polyline::new(&points)
                     .into_styled(thin_stroke)

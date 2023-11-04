@@ -9,6 +9,7 @@ pub trait OptionTrait {
     fn tick_down(&mut self);
 }
 
+#[derive(Clone)]
 pub struct Option<T> {
     pub name: OptionString,
     pub value: T,
@@ -17,6 +18,7 @@ pub struct Option<T> {
     max: T,
 }
 
+#[derive(Clone)]
 pub struct Options {
     pub attack_ms: Option<u32>,
     pub decay_ms: Option<u32>,
