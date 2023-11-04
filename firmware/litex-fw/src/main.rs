@@ -57,11 +57,11 @@ litex_hal::timer! {
 }
 
 litex_hal::gpio! {
-    CTL: litex_pac::OLED_CTL,
+    OledGpio: litex_pac::OLED_CTL,
 }
 
 litex_hal::spi! {
-    SPI: (litex_pac::OLED_SPI, u8),
+    OledSpi: (litex_pac::OLED_SPI, u8),
 }
 
 const N_CHANNELS: usize = 4;
@@ -454,32 +454,54 @@ impl Encoder {
     }
 }
 
-#[entry]
-fn main() -> ! {
-    let peripherals = unsafe { pac::Peripherals::steal() };
+struct SpiDma {
+    spi_dma: pac::SPI_DMA,
+}
 
-    log::init(peripherals.UART);
-    log::info!("hello from litex-fw!");
+impl SpiDma {
+    fn new(spi_dma: pac::SPI_DMA,
+           target: *const pac::oled_spi::RegisterBlock) -> Self {
+        unsafe {
+            // TODO: Any way to get RegisterBlock sub-addresses automagically?
+            spi_dma.spi_control_reg_address.write(
+                |w| w.bits(target as u32));
+            spi_dma.spi_status_reg_address.write(
+                |w| w.bits(target as u32 + 0x04));
+            spi_dma.spi_mosi_reg_address.write(
+                |w| w.bits(target as u32 + 0x08));
+        }
+        Self {
+            spi_dma
+        }
+    }
 
-    let pmod0 = peripherals.EURORACK_PMOD0;
+    fn block(&self) {
+        while self.spi_dma.done.read().bits() == 0 {
+            // Wait for an existing transfer to complete.
+        }
+    }
 
-    let pca9635 = peripherals.PCA9635;
+    fn transfer(&mut self, data_ptr: *const u8, data_len: usize) {
+        unsafe {
+            self.spi_dma.read_base.write(|w| w.bits(data_ptr as u32));
+            self.spi_dma.read_length.write(|w| w.bits(data_len as u32));
+            self.spi_dma.start.write(|w| w.start().bit(true));
+            self.spi_dma.start.write(|w| w.start().bit(false));
+        }
+    }
+}
 
+unsafe fn reset_soc(ctrl: &pac::CTRL) {
+    ctrl.reset.write(|w| w.soc_rst().bit(true));
+}
 
-    let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
+    -> ssd1322::Display<ssd1322::SpiInterface<OledSpi, OledGpio>> {
 
-    pca9635.reset_line(true);
-    pmod0.reset_line(true);
-    timer.delay_ms(10u32);
-    pca9635.reset_line(false);
-    pmod0.reset_line(false);
-
-    let dc = CTL { index: 0 };
-    let mut rstn = CTL { index: 1 };
-    let mut csn = CTL { index: 2 };
-    let spi = SPI {
-        registers: peripherals.OLED_SPI
-    };
+    let dc = OledGpio::new(0);
+    let mut rstn = OledGpio::new(1);
+    let mut csn = OledGpio::new(2);
+    let spi = OledSpi::new(oled_spi);
 
     // Create the SpiInterface and Display.
     let mut disp = oled::Display::new(
@@ -511,6 +533,30 @@ fn main() -> ! {
                .com_deselect_voltage(7),
        ).unwrap();
 
+    disp
+}
+
+#[entry]
+fn main() -> ! {
+    let peripherals = unsafe { pac::Peripherals::steal() };
+
+    log::init(peripherals.UART);
+    log::info!("hello from litex-fw!");
+
+    let pmod0 = peripherals.EURORACK_PMOD0;
+
+    let pca9635 = peripherals.PCA9635;
+
+
+    let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+
+    pca9635.reset_line(true);
+    pmod0.reset_line(true);
+    timer.delay_ms(10u32);
+    pca9635.reset_line(false);
+    pmod0.reset_line(false);
+
+    let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
     let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
@@ -525,14 +571,7 @@ fn main() -> ! {
 
     timer.set_periodic_event(5); // 5ms tick
 
-    unsafe {
-        peripherals.SPI_DMA.spi_control_reg_address.write(
-            |w| w.bits(litex_pac::OLED_SPI::PTR as u32));
-        peripherals.SPI_DMA.spi_status_reg_address.write(
-            |w| w.bits(litex_pac::OLED_SPI::PTR as u32 + 0x04));
-        peripherals.SPI_DMA.spi_mosi_reg_address.write(
-            |w| w.bits(litex_pac::OLED_SPI::PTR as u32 + 0x08));
-    }
+    let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
 
     unsafe {
 
@@ -601,7 +640,7 @@ fn main() -> ! {
             }
 
             if encoder.long_press() {
-                peripherals.CTRL.reset.write(|w| w.soc_rst().bit(true));
+                unsafe { reset_soc(&peripherals.CTRL); }
             }
 
 
@@ -686,17 +725,9 @@ fn main() -> ! {
             }
 
             let fb = disp.swap_clear();
-            unsafe {
-                fence();
-                while peripherals.SPI_DMA.done.read().bits() == 0 {
-                    // Don't start to DMA a new framebuffer if we're still
-                    // pushing through the last one.
-                }
-                peripherals.SPI_DMA.read_base.write(|w| w.bits(fb.as_ptr() as u32));
-                peripherals.SPI_DMA.read_length.write(|w| w.bits(fb.len() as u32));
-                peripherals.SPI_DMA.start.write(|w| w.start().bit(true));
-                peripherals.SPI_DMA.start.write(|w| w.start().bit(false));
-            }
+            fence();
+            spi_dma.block();
+            spi_dma.transfer(fb.as_ptr(), fb.len());
 
             let cycle_cnt_now = timer.uptime();
             let cycle_cnt_last = cycle_cnt;
