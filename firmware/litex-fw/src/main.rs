@@ -187,7 +187,7 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
 
     critical_section::with(|cs| {
         let state = &mut state.borrow_ref_mut(cs);
-        let opts = &opts.borrow_ref(cs);
+        let opts = &mut opts.borrow_ref_mut(cs);
         state.tick(opts, uptime_ms);
     });
 }
@@ -238,31 +238,49 @@ impl State {
         }
     }
 
-    fn tick(&mut self, opts: &opt::Options, uptime_ms: u32) {
+    fn tick(&mut self, opts: &mut opt::Options, uptime_ms: u32) {
+
+        let peripherals = unsafe { pac::Peripherals::steal() };
 
         self.breathe.tick();
 
         self.encoder.update_ticks(uptime_ms);
 
-        unsafe {
-            let peripherals = pac::Peripherals::steal();
+        if self.encoder.pending_short_press() {
+            opts.toggle_modify();
+        }
 
-            let shifter = get_shifters(&peripherals);
+        if self.encoder.pending_long_press() {
+            unsafe { reset_soc(&peripherals.CTRL); }
+        }
 
-            let lpf = get_lpfs(&peripherals);
-
-            while let Ok(event) = self.midi_in.read() {
-                self.voice_manager.event(event, uptime_ms);
+        let encoder_ticks = self.encoder.pending_ticks();
+        if encoder_ticks > 0 {
+            for _ in 0..encoder_ticks {
+                opts.tick_up();
             }
-
-            self.voice_manager.tick(uptime_ms, opts);
-
-            for n_voice in 0..N_VOICES {
-                let voice = &self.voice_manager.voices[n_voice];
-                shifter[n_voice].set_pitch(voice.pitch);
-                lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-                lpf[n_voice].set_resonance(opts.resonance.value);
+        }
+        if encoder_ticks < 0 {
+            for _ in 0..(-encoder_ticks) {
+                opts.tick_down();
             }
+        }
+
+        let shifter = get_shifters(&peripherals);
+
+        let lpf = get_lpfs(&peripherals);
+
+        while let Ok(event) = self.midi_in.read() {
+            self.voice_manager.event(event, uptime_ms);
+        }
+
+        self.voice_manager.tick(uptime_ms, opts);
+
+        for n_voice in 0..N_VOICES {
+            let voice = &self.voice_manager.voices[n_voice];
+            shifter[n_voice].set_pitch(voice.pitch);
+            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+            lpf[n_voice].set_resonance(opts.resonance.value);
         }
     }
 }
@@ -579,10 +597,6 @@ fn main() -> ! {
     let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
 
-    let mut cur_opt: usize = 0;
-
-    let mut modif: bool = false;
-
     timer.set_periodic_event(5); // 5ms tick
 
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
@@ -647,58 +661,21 @@ fn main() -> ! {
                 }
             }
 
-            let (enc_short_press, enc_long_press, encoder_ticks) =
-                critical_section::with(|cs| {
-                    let enc = &mut state.borrow_ref_mut(cs).encoder;
-                    (enc.pending_short_press(),
-                     enc.pending_long_press(),
-                     enc.pending_ticks())
-            });
-
-            if enc_short_press {
-                modif = !modif;
-            }
-
-            if enc_long_press {
-                unsafe { reset_soc(&peripherals.CTRL); }
-            }
-
-
             {
 
                 let opts_ro = critical_section::with(|cs| {
-                    let opts = &mut opts.borrow_ref_mut(cs);
-                    let opts_view = opts.view_mut();
-                    if modif {
-                        if encoder_ticks > 0 {
-                            opts_view[cur_opt].tick_up();
-                        }
-                        if encoder_ticks < 0 {
-                            opts_view[cur_opt].tick_down();
-                        }
-                    }
-                    opts.clone()
+                    opts.borrow_ref(cs).clone()
                 });
 
                 // Should always succeed if the above CS runs.
                 let opts_view = opts_ro.view();
 
-                if !modif {
-                    let sel_opt = (cur_opt as i32) + encoder_ticks;
-                    if sel_opt >= opts_view.len() as i32 {
-                        cur_opt = opts_view.len()-1;
-                    }
-                    if sel_opt < 0 {
-                        cur_opt = 0;
-                    }
-                }
-
                 let vy: usize = 205;
                 for (n, opt) in opts_view.iter().enumerate() {
                     let mut font = font_small_grey;
-                    if cur_opt == n {
+                    if opts_ro.selected == n {
                         font = font_small_white;
-                        if modif {
+                        if opts_ro.modify {
                             Text::with_alignment(
                                 "-",
                                 Point::new(62, (vy+10*n) as i32),

@@ -20,6 +20,8 @@ pub struct Option<T> {
 
 #[derive(Clone)]
 pub struct Options {
+    pub modify: bool,
+    pub selected: usize,
     pub attack_ms: Option<u32>,
     pub decay_ms: Option<u32>,
     pub release_ms: Option<u32>,
@@ -30,6 +32,8 @@ pub struct Options {
 impl Options {
     pub fn new() -> Options {
         Options {
+            modify: false,
+            selected: 0,
             delay_len: Option {
                 name: "delayln".into(),
                 value: 511,
@@ -65,6 +69,28 @@ impl Options {
                 min: 0,
                 max: 20000,
             },
+        }
+    }
+
+    pub fn toggle_modify(&mut self) {
+        self.modify = !self.modify;
+    }
+
+    pub fn tick_up(&mut self) {
+        let selected = self.selected;
+        if self.modify {
+            self.view_mut()[selected].tick_up();
+        } else if selected < self.view().len()-1 {
+            self.selected = selected + 1;
+        }
+    }
+
+    pub fn tick_down(&mut self) {
+        let selected = self.selected;
+        if self.modify {
+            self.view_mut()[selected].tick_down();
+        } else if selected != 0 {
+            self.selected = selected - 1;
         }
     }
 
