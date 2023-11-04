@@ -224,17 +224,25 @@ unsafe fn irq_handler() {
 struct State {
     midi_in: MidiIn<UartMidi>,
     voice_manager: VoiceManager,
+    encoder: Encoder,
+    breathe: LedBreathe,
 }
 
 impl State {
-    fn new(midi_in: MidiIn<UartMidi>) -> Self {
+    fn new(midi_in: MidiIn<UartMidi>, encoder: Encoder, breathe: LedBreathe) -> Self {
         State {
             midi_in,
             voice_manager: VoiceManager::new(),
+            encoder,
+            breathe,
         }
     }
 
     fn tick(&mut self, opts: &opt::Options, uptime_ms: u32) {
+
+        self.breathe.tick();
+
+        self.encoder.update_ticks(uptime_ms);
 
         unsafe {
             let peripherals = pac::Peripherals::steal();
@@ -441,19 +449,19 @@ impl Encoder {
         self.ticks_since_last_read += enc_delta;
     }
 
-    fn short_press(&mut self) -> bool {
+    fn pending_short_press(&mut self) -> bool {
         let result = self.short_press;
         self.short_press = false;
         result
     }
 
-    fn long_press(&mut self) -> bool {
+    fn pending_long_press(&mut self) -> bool {
         let result = self.long_press;
         self.short_press = false;
         result
     }
 
-    fn ticks_since_last_read(&mut self) -> i32 {
+    fn pending_ticks(&mut self) -> i32 {
         let result = self.ticks_since_last_read;
         self.ticks_since_last_read = 0;
         result
@@ -597,16 +605,16 @@ fn main() -> ! {
         riscv::interrupt::enable();
     }
 
-    let mut breathe = LedBreathe::new(pca9635);
-    let mut encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
+    let breathe = LedBreathe::new(pca9635);
+    let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 
     let opts = Mutex::new(RefCell::new(opt::Options::new()));
-    let state = Mutex::new(RefCell::new(State::new(midi_in)));
+    let state = Mutex::new(RefCell::new(State::new(midi_in, encoder, breathe)));
     let oscope = Mutex::new(RefCell::new(OScope::new()));
 
     handler!(dma_router0 = || dma_router0_handler(&oscope));
@@ -619,8 +627,6 @@ fn main() -> ! {
 
         loop {
 
-            let uptime_ms = (timer.uptime() / ((SYSTEM_CLOCK_FREQUENCY as u64)/1000u64)) as u32;
-
             Text::with_alignment(
                 "POLYPHONIZER",
                 Point::new(disp.bounding_box().center().x, 10),
@@ -630,30 +636,35 @@ fn main() -> ! {
             .draw(&mut disp).ok();
 
             // These should move to TIMER0 interrupt?
-            breathe.tick();
-            encoder.update_ticks(uptime_ms);
 
             {
                 let voices_ro = critical_section::with(|cs| {
                     state.borrow_ref(cs).voice_manager.voices.clone()
                 });
                 for (n_voice, voice) in voices_ro.iter().enumerate() {
-                    draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
+                    draw_voice(&mut disp, (55+37*n_voice) as u32,
+                               n_voice as u32, voice).ok();
                 }
             }
 
-            if encoder.short_press() {
+            let (enc_short_press, enc_long_press, encoder_ticks) =
+                critical_section::with(|cs| {
+                    let enc = &mut state.borrow_ref_mut(cs).encoder;
+                    (enc.pending_short_press(),
+                     enc.pending_long_press(),
+                     enc.pending_ticks())
+            });
+
+            if enc_short_press {
                 modif = !modif;
             }
 
-            if encoder.long_press() {
+            if enc_long_press {
                 unsafe { reset_soc(&peripherals.CTRL); }
             }
 
 
             {
-
-                let encoder_ticks = encoder.ticks_since_last_read();
 
                 let opts_ro = critical_section::with(|cs| {
                     let opts = &mut opts.borrow_ref_mut(cs);
