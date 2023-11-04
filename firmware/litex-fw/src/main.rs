@@ -382,6 +382,47 @@ where
     Ok(())
 }
 
+fn draw_options<D>(d: &mut D, opts: &opt::Options) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Gray4>,
+{
+    let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
+    let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
+
+    // Should always succeed if the above CS runs.
+    let opts_view = opts.view();
+
+    let vy: usize = 205;
+    for (n, opt) in opts_view.iter().enumerate() {
+        let mut font = font_small_grey;
+        if opts.selected == n {
+            font = font_small_white;
+            if opts.modify {
+                Text::with_alignment(
+                    "-",
+                    Point::new(62, (vy+10*n) as i32),
+                    font,
+                    Alignment::Left,
+                ).draw(d)?;
+            }
+        }
+        Text::with_alignment(
+            opt.name(),
+            Point::new(5, (vy+10*n) as i32),
+            font,
+            Alignment::Left,
+        ).draw(d)?;
+        Text::with_alignment(
+            &opt.value(),
+            Point::new(60, (vy+10*n) as i32),
+            font,
+            Alignment::Right,
+        ).draw(d)?;
+    }
+
+    Ok(())
+}
+
 fn fence() {
     unsafe {
         asm!("fence iorw, iorw");
@@ -591,9 +632,6 @@ fn main() -> ! {
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-    let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
-    let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
-
     let mut cycle_cnt = timer.uptime();
     let mut td_us: Option<u32> = None;
 
@@ -651,53 +689,17 @@ fn main() -> ! {
 
             // These should move to TIMER0 interrupt?
 
-            {
-                let voices_ro = critical_section::with(|cs| {
-                    state.borrow_ref(cs).voice_manager.voices.clone()
-                });
-                for (n_voice, voice) in voices_ro.iter().enumerate() {
-                    draw_voice(&mut disp, (55+37*n_voice) as u32,
-                               n_voice as u32, voice).ok();
-                }
+            let (opts, voices) = critical_section::with(|cs| {
+                (opts.borrow_ref(cs).clone(),
+                 state.borrow_ref(cs).voice_manager.voices.clone())
+            });
+
+            for (n_voice, voice) in voices.iter().enumerate() {
+                draw_voice(&mut disp, (55+37*n_voice) as u32,
+                           n_voice as u32, voice).ok();
             }
 
-            {
-
-                let opts_ro = critical_section::with(|cs| {
-                    opts.borrow_ref(cs).clone()
-                });
-
-                // Should always succeed if the above CS runs.
-                let opts_view = opts_ro.view();
-
-                let vy: usize = 205;
-                for (n, opt) in opts_view.iter().enumerate() {
-                    let mut font = font_small_grey;
-                    if opts_ro.selected == n {
-                        font = font_small_white;
-                        if opts_ro.modify {
-                            Text::with_alignment(
-                                "-",
-                                Point::new(62, (vy+10*n) as i32),
-                                font,
-                                Alignment::Left,
-                            ).draw(&mut disp).ok();
-                        }
-                    }
-                    Text::with_alignment(
-                        opt.name(),
-                        Point::new(5, (vy+10*n) as i32),
-                        font,
-                        Alignment::Left,
-                    ).draw(&mut disp).ok();
-                    Text::with_alignment(
-                        &opt.value(),
-                        Point::new(60, (vy+10*n) as i32),
-                        font,
-                        Alignment::Right,
-                    ).draw(&mut disp).ok();
-                }
-            }
+            draw_options(&mut disp, &opts).ok();
 
             if let Some(value) = td_us {
                 let mut s: String<64> = String::new();
