@@ -634,11 +634,10 @@ fn main() -> ! {
             encoder.update_ticks(uptime_ms);
 
             {
-                let mut voices_ro: Option<[Voice; N_VOICES]> = None;
-                critical_section::with(|cs| {
-                    voices_ro = Some(state.borrow_ref(cs).voice_manager.voices.clone());
+                let voices_ro = critical_section::with(|cs| {
+                    state.borrow_ref(cs).voice_manager.voices.clone()
                 });
-                for (n_voice, voice) in voices_ro.unwrap().iter().enumerate() {
+                for (n_voice, voice) in voices_ro.iter().enumerate() {
                     draw_voice(&mut disp, (55+37*n_voice) as u32, n_voice as u32, voice).ok();
                 }
             }
@@ -655,9 +654,8 @@ fn main() -> ! {
             {
 
                 let encoder_ticks = encoder.ticks_since_last_read();
-                let mut opts_ro: Option<opt::Options> = None;
 
-                critical_section::with(|cs| {
+                let opts_ro = critical_section::with(|cs| {
                     let opts = &mut opts.borrow_ref_mut(cs);
                     let opts_view = opts.view_mut();
                     if modif {
@@ -668,12 +666,11 @@ fn main() -> ! {
                             opts_view[cur_opt].tick_down();
                         }
                     }
-                    opts_ro = Some(opts.clone());
+                    opts.clone()
                 });
 
                 // Should always succeed if the above CS runs.
-                let opts = opts_ro.unwrap();
-                let opts_view = opts.view();
+                let opts_view = opts_ro.view();
 
                 if !modif {
                     let sel_opt = (cur_opt as i32) + encoder_ticks;
@@ -729,14 +726,13 @@ fn main() -> ! {
 
             {
 
-                let mut samples = [0i16; SCOPE_SAMPLES];
-                critical_section::with(|cs| {
+                let samples = critical_section::with(|cs| {
                     let scope = &mut oscope.borrow_ref_mut(cs);
                     if scope.full() {
                         // samples_dbl can only ever update here
                         scope.reset();
                     }
-                    samples = scope.samples_dbl;
+                    scope.samples_dbl
                 });
                 let mut points: [Point; 64] = [Point::new(0, 0); 64];
                 for (n, point) in points.iter_mut().enumerate() {
