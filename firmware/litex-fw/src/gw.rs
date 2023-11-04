@@ -1,5 +1,10 @@
 #![allow(unused_macros)]
 
+use litex_pac as pac;
+use litex_hal::uart::UartError;
+
+pub const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
+
 pub trait EurorackPmod {
     fn reset_line(&self, set_high: bool);
     fn eeprom_serial(&self) -> u32;
@@ -129,8 +134,47 @@ macro_rules! pwm_led {
     };
 }
 
-pub(crate) use eurorack_pmod;
-pub(crate) use wavetable_oscillator;
-pub(crate) use pitch_shift;
-pub(crate) use karlsen_lpf;
-pub(crate) use pwm_led;
+eurorack_pmod!(pac::EURORACK_PMOD0);
+pitch_shift!(pac::PITCH_SHIFT0);
+pitch_shift!(pac::PITCH_SHIFT1);
+pitch_shift!(pac::PITCH_SHIFT2);
+pitch_shift!(pac::PITCH_SHIFT3);
+karlsen_lpf!(pac::KARLSEN_LPF0);
+karlsen_lpf!(pac::KARLSEN_LPF1);
+karlsen_lpf!(pac::KARLSEN_LPF2);
+karlsen_lpf!(pac::KARLSEN_LPF3);
+pwm_led!(pac::PCA9635);
+
+litex_hal::uart! {
+    UartMidi: litex_pac::UART_MIDI,
+}
+
+litex_hal::timer! {
+    Timer: litex_pac::TIMER0,
+}
+
+litex_hal::gpio! {
+    OledGpio: litex_pac::OLED_CTL,
+}
+
+litex_hal::spi! {
+    OledSpi: (litex_pac::OLED_SPI, u8),
+}
+
+pub fn get_shifters(p: &pac::Peripherals) -> [&dyn PitchShift; 4] {
+    [
+        &p.PITCH_SHIFT0,
+        &p.PITCH_SHIFT1,
+        &p.PITCH_SHIFT2,
+        &p.PITCH_SHIFT3,
+    ]
+}
+
+pub fn get_lpfs(p: &pac::Peripherals) -> [&dyn KarlsenLpf; 4] {
+    [
+        &p.KARLSEN_LPF0,
+        &p.KARLSEN_LPF1,
+        &p.KARLSEN_LPF2,
+        &p.KARLSEN_LPF3,
+    ]
+}

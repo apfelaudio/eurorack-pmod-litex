@@ -4,7 +4,6 @@
 #![no_main]
 
 use litex_hal::prelude::*;
-use litex_hal::uart::UartError;
 use litex_pac as pac;
 use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
@@ -36,35 +35,6 @@ use voice::*;
 use gw::*;
 use log::*;
 
-eurorack_pmod!(pac::EURORACK_PMOD0);
-pitch_shift!(pac::PITCH_SHIFT0);
-pitch_shift!(pac::PITCH_SHIFT1);
-pitch_shift!(pac::PITCH_SHIFT2);
-pitch_shift!(pac::PITCH_SHIFT3);
-karlsen_lpf!(pac::KARLSEN_LPF0);
-karlsen_lpf!(pac::KARLSEN_LPF1);
-karlsen_lpf!(pac::KARLSEN_LPF2);
-karlsen_lpf!(pac::KARLSEN_LPF3);
-pwm_led!(pac::PCA9635);
-
-const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
-
-litex_hal::uart! {
-    UartMidi: litex_pac::UART_MIDI,
-}
-
-litex_hal::timer! {
-    Timer: litex_pac::TIMER0,
-}
-
-litex_hal::gpio! {
-    OledGpio: litex_pac::OLED_CTL,
-}
-
-litex_hal::spi! {
-    OledSpi: (litex_pac::OLED_SPI, u8),
-}
-
 const N_VOICES: usize = 4;
 const SCOPE_SAMPLES: usize = 256;
 const N_CHANNELS: usize = 4;
@@ -74,24 +44,6 @@ const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
 // accessed by DMA that iterates across words!.
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
-
-fn get_shifters(p: &pac::Peripherals) -> [&dyn gw::PitchShift; 4] {
-    [
-        &p.PITCH_SHIFT0,
-        &p.PITCH_SHIFT1,
-        &p.PITCH_SHIFT2,
-        &p.PITCH_SHIFT3,
-    ]
-}
-
-fn get_lpfs(p: &pac::Peripherals) -> [&dyn gw::KarlsenLpf; 4] {
-    [
-        &p.KARLSEN_LPF0,
-        &p.KARLSEN_LPF1,
-        &p.KARLSEN_LPF2,
-        &p.KARLSEN_LPF3,
-    ]
-}
 
 scoped_interrupts! {
 
