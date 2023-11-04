@@ -65,6 +65,8 @@ litex_hal::spi! {
     OledSpi: (litex_pac::OLED_SPI, u8),
 }
 
+const N_VOICES: usize = 4;
+const SCOPE_SAMPLES: usize = 256;
 const N_CHANNELS: usize = 4;
 const BUF_SZ_WORDS: usize = 512;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
@@ -72,14 +74,6 @@ const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
 // accessed by DMA that iterates across words!.
 static mut BUF_IN: Aligned<A4, [i16; BUF_SZ_SAMPLES]> = Aligned([0i16; BUF_SZ_SAMPLES]);
-
-static mut LAST_IRQ: u32 = 0;
-static mut LAST_IRQ_LEN: u32 = 0;
-static mut LAST_IRQ_PERIOD: u32 = 0;
-
-const SCOPE_SAMPLES: usize = 256;
-
-const N_VOICES: usize = 4;
 
 fn get_shifters(p: &pac::Peripherals) -> [&dyn gw::PitchShift; 4] {
     [
@@ -114,7 +108,7 @@ struct OScope {
     samples: [i16; SCOPE_SAMPLES],
     samples_dbl: [i16; SCOPE_SAMPLES],
     n_samples: usize,
-    trig_lo: bool
+    trig_lo: bool,
 }
 
 impl OScope {
@@ -158,6 +152,37 @@ impl OScope {
     }
 }
 
+struct Trace {
+    last_timestamp_cycles: u64,
+    last_len_cycles: u64,
+    last_period_cycles: u64,
+}
+
+impl Trace {
+    fn new() -> Self {
+        Self {
+            last_timestamp_cycles: 0,
+            last_len_cycles: 0,
+            last_period_cycles: 0,
+        }
+    }
+
+    fn start(&mut self, timer: &Timer) {
+        let uptime = timer.uptime();
+        self.last_period_cycles = uptime - self.last_timestamp_cycles;
+        self.last_timestamp_cycles = uptime;
+    }
+
+    fn end(&mut self, timer: &Timer) {
+        let uptime = timer.uptime();
+        self.last_len_cycles = uptime - self.last_timestamp_cycles;
+    }
+
+    fn len_us(&self) -> u32 {
+        (self.last_len_cycles / ((SYSTEM_CLOCK_FREQUENCY / 1_000_000u32) as u64)) as u32
+    }
+}
+
 fn dma_router0_handler(scope: &Mutex<RefCell<OScope>>) {
     unsafe {
         let peripherals = pac::Peripherals::steal();
@@ -188,7 +213,9 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
     critical_section::with(|cs| {
         let state = &mut state.borrow_ref_mut(cs);
         let opts = &mut opts.borrow_ref_mut(cs);
+        state.trace.start(&timer);
         state.tick(opts, uptime_ms);
+        state.trace.end(&timer);
     });
 }
 
@@ -196,11 +223,6 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
 unsafe fn irq_handler() {
     let pending_irq = vexriscv::register::vmip::read();
     let peripherals = pac::Peripherals::steal();
-
-    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-    let trace = peripherals.TIMER0.uptime_cycles0.read().bits();
-    LAST_IRQ_PERIOD = trace - LAST_IRQ;
-    LAST_IRQ = trace;
 
     if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
@@ -216,12 +238,10 @@ unsafe fn irq_handler() {
         fence();
     }
 
-    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-    let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
-    LAST_IRQ_LEN = trace_end - trace;
 }
 
 struct State {
+    trace: Trace,
     midi_in: MidiIn<UartMidi>,
     voice_manager: VoiceManager,
     encoder: Encoder,
@@ -231,6 +251,7 @@ struct State {
 impl State {
     fn new(midi_in: MidiIn<UartMidi>, encoder: Encoder, breathe: LedBreathe) -> Self {
         State {
+            trace: Trace::new(),
             midi_in,
             voice_manager: VoiceManager::new(),
             encoder,
@@ -651,8 +672,6 @@ fn main() -> ! {
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-    let mut cycle_cnt = timer.uptime();
-    let mut time_delta_us: Option<u32> = None;
 
     timer.set_periodic_event(5); // 5ms tick
 
@@ -688,6 +707,8 @@ fn main() -> ! {
     let state = Mutex::new(RefCell::new(State::new(midi_in, encoder, breathe)));
     let oscope = Mutex::new(RefCell::new(OScope::new()));
 
+    let mut trace_main = Trace::new();
+
     handler!(dma_router0 = || dma_router0_handler(&oscope));
     handler!(timer0 = || timer0_handler(&state, &opts));
 
@@ -697,6 +718,8 @@ fn main() -> ! {
         scope.register(Interrupt::TIMER0, timer0);
 
         loop {
+
+            trace_main.start(&timer);
 
             Text::with_alignment(
                 "POLYPHONIZER",
@@ -708,9 +731,11 @@ fn main() -> ! {
 
             // These should move to TIMER0 interrupt?
 
-            let (opts, voices) = critical_section::with(|cs| {
+            let (opts, voices, irq0_len_us) = critical_section::with(|cs| {
+                let state = state.borrow_ref(cs);
                 (opts.borrow_ref(cs).clone(),
-                 state.borrow_ref(cs).voice_manager.voices.clone())
+                 state.voice_manager.voices.clone(),
+                 state.trace.len_us())
             });
 
             for (n_voice, voice) in voices.iter().enumerate() {
@@ -720,9 +745,10 @@ fn main() -> ! {
 
             draw_options(&mut disp, &opts).ok();
 
-            if let Some(value) = time_delta_us {
-                draw_ms(&mut disp, value, Point::new(5, 255), character_style).ok();
-            }
+            draw_ms(&mut disp, trace_main.len_us(),
+                    Point::new(5, 255), character_style).ok();
+            draw_ms(&mut disp, irq0_len_us,
+                    Point::new(5, 245), character_style).ok();
 
             {
 
@@ -749,26 +775,7 @@ fn main() -> ! {
             spi_dma.block();
             spi_dma.transfer(fb.as_ptr(), fb.len());
 
-            {
-                let cycle_cnt_now = timer.uptime();
-                let cycle_cnt_last = cycle_cnt;
-                cycle_cnt = cycle_cnt_now;
-                let delta = (cycle_cnt_now - cycle_cnt_last) as u32;
-                time_delta_us = Some(delta / (SYSTEM_CLOCK_FREQUENCY / 1_000_000u32));
-            }
-
-            /*
-            unsafe {
-                for i in 0..4 {
-                    log::info!("{:x}@{:x}", i, BUF_IN[i]);
-                }
-                log::info!("irq_period: {}", LAST_IRQ_PERIOD);
-                log::info!("irq_len: {}", LAST_IRQ_LEN);
-                if LAST_IRQ_PERIOD != 0 {
-                    log::info!("irq_load_percent: {}", (LAST_IRQ_LEN * 100) / LAST_IRQ_PERIOD);
-                }
-            }
-            */
+            trace_main.end(&timer);
         }
     })
 
