@@ -40,6 +40,7 @@ const SCOPE_SAMPLES: usize = 256;
 const N_CHANNELS: usize = 4;
 const BUF_SZ_WORDS: usize = 512;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
+const TICK_MS: u32 = 5;
 
 // MUST be aligned to 4-byte (word) boundary for RV32. These buffers are directly
 // accessed by DMA that iterates across words!.
@@ -217,7 +218,7 @@ impl State {
 
         self.breathe.tick();
 
-        self.encoder.update_ticks(uptime_ms);
+        self.encoder.update_ticks(TICK_MS);
 
         if self.encoder.pending_short_press() {
             opts.toggle_modify();
@@ -454,7 +455,7 @@ impl Encoder {
         }
     }
 
-    fn update_ticks(&mut self, uptime_ms: u32) {
+    fn update_ticks(&mut self, ms_per_tick: u32) {
         let enc_now: u32 = self.encoder.csr_state.read().bits() >> 2;
         let mut enc_delta: i32 = (enc_now as i32) - (self.enc_last as i32);
         if enc_delta > 10 {
@@ -466,7 +467,7 @@ impl Encoder {
         self.enc_last = enc_now;
 
         if self.button.in_.read().bits() != 0 {
-            self.btn_held_ms += uptime_ms;
+            self.btn_held_ms += ms_per_tick;
         } else {
             if self.btn_held_ms > 0 {
                 self.short_press = true;
@@ -489,7 +490,7 @@ impl Encoder {
 
     fn pending_long_press(&mut self) -> bool {
         let result = self.long_press;
-        self.short_press = false;
+        self.long_press = false;
         result
     }
 
@@ -625,7 +626,7 @@ fn main() -> ! {
 
     let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
 
-    timer.set_periodic_event(5); // 5ms tick
+    timer.set_periodic_event(TICK_MS);
 
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
 
@@ -642,11 +643,7 @@ fn main() -> ! {
 
         // Enable machine external interrupts (basically everything added on by LiteX).
         riscv::register::mie::set_mext();
-
-        // Finally enable interrupts
-        riscv::interrupt::enable();
     }
-
 
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
@@ -668,6 +665,13 @@ fn main() -> ! {
 
         scope.register(Interrupt::DMA_ROUTER0, dma_router0);
         scope.register(Interrupt::TIMER0, timer0);
+
+        unsafe {
+            // WARN: Don't do this before IRQs are registered for this scope,
+            // otherwise you'll hang forever :)
+            // Finally enable interrupts
+            riscv::interrupt::enable();
+        }
 
         loop {
 
