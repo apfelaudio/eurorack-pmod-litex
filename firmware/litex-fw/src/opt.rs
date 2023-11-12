@@ -1,5 +1,7 @@
 use heapless::String;
 
+use strum_macros::{EnumIter, IntoStaticStr};
+
 pub type OptionString = String<32>;
 
 pub trait OptionTrait {
@@ -10,7 +12,7 @@ pub trait OptionTrait {
 }
 
 #[derive(Clone)]
-pub struct Option<T> {
+pub struct NumOption<T> {
     pub name: OptionString,
     pub value: T,
     step: T,
@@ -19,14 +21,29 @@ pub struct Option<T> {
 }
 
 #[derive(Clone)]
+pub struct EnumOption<T> {
+    pub name: OptionString,
+    pub value: T,
+}
+
+#[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
+#[strum(serialize_all = "kebab-case")]
+pub enum EnumTest {
+    ValueA,
+    ValueB,
+    ValueC
+}
+
+#[derive(Clone)]
 pub struct Options {
     pub modify: bool,
     pub selected: usize,
-    pub attack_ms: Option<u32>,
-    pub decay_ms: Option<u32>,
-    pub release_ms: Option<u32>,
-    pub resonance: Option<i16>,
-    pub delay_len: Option<u32>,
+    pub attack_ms: NumOption<u32>,
+    pub decay_ms: NumOption<u32>,
+    pub release_ms: NumOption<u32>,
+    pub resonance: NumOption<i16>,
+    pub delay_len: NumOption<u32>,
+    pub enum_test: EnumOption<EnumTest>,
 }
 
 impl Options {
@@ -34,40 +51,44 @@ impl Options {
         Options {
             modify: false,
             selected: 0,
-            delay_len: Option {
+            delay_len: NumOption{
                 name: "delayln".into(),
                 value: 511,
                 step: 1,
                 min: 128,
                 max: 511,
             },
-            attack_ms: Option {
+            attack_ms: NumOption{
                 name: "attack".into(),
                 value: 100,
                 step: 50,
                 min: 0,
                 max: 5000,
             },
-            decay_ms: Option {
+            decay_ms: NumOption{
                 name: "decay".into(),
                 value: 100,
                 step: 50,
                 min: 0,
                 max: 5000,
             },
-            release_ms: Option {
+            release_ms: NumOption{
                 name: "release".into(),
                 value: 300,
                 step: 50,
                 min: 0,
                 max: 5000,
             },
-            resonance: Option {
+            resonance: NumOption{
                 name: "reso".into(),
                 value: 10000,
                 step: 1000,
                 min: 0,
                 max: 20000,
+            },
+            enum_test: EnumOption{
+                name: "enumt".into(),
+                value: EnumTest::ValueA,
             },
         }
     }
@@ -95,8 +116,9 @@ impl Options {
     }
 
     #[allow(dead_code)]
-    pub fn view(&self) -> [& dyn OptionTrait; 5] {
+    pub fn view(&self) -> [& dyn OptionTrait; 6] {
         [
+            &self.enum_test,
             &self.attack_ms,
             &self.decay_ms,
             &self.release_ms,
@@ -106,8 +128,9 @@ impl Options {
     }
 
     #[allow(dead_code)]
-    pub fn view_mut(&mut self) -> [&mut dyn OptionTrait; 5] {
+    pub fn view_mut(&mut self) -> [&mut dyn OptionTrait; 6] {
         [
+            &mut self.enum_test,
             &mut self.attack_ms,
             &mut self.decay_ms,
             &mut self.release_ms,
@@ -122,7 +145,7 @@ impl<T: Copy +
         core::ops::Sub<Output = T> +
         core::cmp::PartialOrd +
         ufmt::uDisplay>
-    OptionTrait for Option<T> {
+    OptionTrait for NumOption<T> {
 
     fn name(&self) -> &OptionString {
         &self.name
@@ -155,6 +178,44 @@ impl<T: Copy +
             self.value = self.min;
         } else {
             self.value = self.value - self.step;
+        }
+    }
+}
+
+impl<T: Copy + strum::IntoEnumIterator + PartialEq + Into<&'static str>>
+    OptionTrait for EnumOption<T> {
+
+    fn name(&self) -> &OptionString {
+        &self.name
+    }
+
+    fn value(&self) -> OptionString {
+        String::from(self.value.into())
+    }
+
+    fn tick_up(&mut self) {
+        let mut it = T::iter();
+        for v in it.by_ref() {
+            if v == self.value {
+                break;
+            }
+        }
+        if let Some(v) = it.next() {
+            self.value = v;
+        }
+    }
+
+    fn tick_down(&mut self) {
+        let it = T::iter();
+        let mut last_value: Option<T> = None;
+        for v in it {
+            if v == self.value {
+                if let Some(lv) = last_value {
+                    self.value = lv;
+                    return;
+                }
+            }
+            last_value = Some(v);
         }
     }
 }
