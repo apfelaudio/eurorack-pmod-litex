@@ -136,9 +136,9 @@ impl VoiceManager {
 
             if v.adsr.is_none() {
                 v.adsr = Some( AdsrParams {
-                    attack_ms: opts.attack_ms.value,
-                    decay_ms: opts.decay_ms.value,
-                    release_ms: opts.release_ms.value,
+                    attack_ms: opts.adsr.attack_ms.value,
+                    decay_ms: opts.adsr.decay_ms.value,
+                    release_ms: opts.adsr.release_ms.value,
                     attack_amplitude: 1.0f32 * (v.velocity as f32 / 128.0f32),
                     sustain_amplitude: 0.8f32 * (v.velocity as f32 / 128.0f32),
                 });

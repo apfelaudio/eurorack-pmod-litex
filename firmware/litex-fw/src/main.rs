@@ -254,7 +254,7 @@ impl State {
             let voice = &self.voice_manager.voices[n_voice];
             shifter[n_voice].set_pitch(voice.pitch);
             lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-            lpf[n_voice].set_resonance(opts.resonance.value);
+            lpf[n_voice].set_resonance(opts.adsr.resonance.value);
         }
     }
 }
@@ -367,17 +367,31 @@ where
     let opts_view = opts.view();
 
     let vy: usize = 205;
+
+    // Draw the current screen text
+    Text::with_alignment(
+        opts.screen.value.into(),
+        Point::new(5, (vy-10) as i32),
+        match (opts.selected(), opts.modify) {
+            (None, _) => font_small_white,
+            _ => font_small_grey,
+        },
+        Alignment::Left,
+    ).draw(d)?;
+
     for (n, opt) in opts_view.iter().enumerate() {
         let mut font = font_small_grey;
-        if opts.selected == n {
-            font = font_small_white;
-            if opts.modify {
-                Text::with_alignment(
-                    "-",
-                    Point::new(62, (vy+10*n) as i32),
-                    font,
-                    Alignment::Left,
-                ).draw(d)?;
+        if let Some(n_selected) = opts.selected() {
+            if n_selected == n {
+                font = font_small_white;
+                if opts.modify {
+                    Text::with_alignment(
+                        "-",
+                        Point::new(62, (vy+10*n) as i32),
+                        font,
+                        Alignment::Left,
+                    ).draw(d)?;
+                }
             }
         }
         Text::with_alignment(
@@ -694,9 +708,11 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-            for (n_voice, voice) in voices.iter().enumerate() {
-                draw_voice(&mut disp, (55+37*n_voice) as u32,
-                           n_voice as u32, voice).ok();
+            if opts.screen.value == opt::Screen::Adsr  {
+                for (n_voice, voice) in voices.iter().enumerate() {
+                    draw_voice(&mut disp, (55+37*n_voice) as u32,
+                               n_voice as u32, voice).ok();
+                }
             }
 
             draw_options(&mut disp, &opts).ok();
@@ -706,8 +722,7 @@ fn main() -> ! {
             draw_ms(&mut disp, irq0_len_us,
                     Point::new(5, 245), character_style).ok();
 
-            {
-
+            if opts.screen.value == opt::Screen::Scope  {
                 let samples = critical_section::with(|cs| {
                     let scope = &mut oscope.borrow_ref_mut(cs);
                     if scope.full() {

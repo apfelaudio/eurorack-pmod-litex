@@ -1,8 +1,11 @@
 use heapless::String;
+use heapless::Vec;
 
 use strum_macros::{EnumIter, IntoStaticStr};
 
 pub type OptionString = String<32>;
+pub type OptionView<'a> = Vec<&'a dyn OptionTrait, 10>;
+pub type OptionViewMut<'a> = Vec<&'a mut dyn OptionTrait, 10>;
 
 pub trait OptionTrait {
     fn name(&self) -> &OptionString;
@@ -34,62 +37,92 @@ pub enum EnumTest {
     ValueC
 }
 
+#[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
+#[strum(serialize_all = "SCREAMING-KEBAB-CASE")]
+pub enum Screen {
+    Adsr,
+    Scope,
+}
+
+
 #[derive(Clone)]
-pub struct Options {
-    pub modify: bool,
-    pub selected: usize,
+pub struct AdsrOptions {
+    pub selected: Option<usize>,
     pub attack_ms: NumOption<u32>,
     pub decay_ms: NumOption<u32>,
     pub release_ms: NumOption<u32>,
     pub resonance: NumOption<i16>,
+}
+
+#[derive(Clone)]
+pub struct ScopeOptions {
+    pub selected: Option<usize>,
     pub delay_len: NumOption<u32>,
     pub enum_test: EnumOption<EnumTest>,
+}
+
+#[derive(Clone)]
+pub struct Options {
+    pub modify: bool,
+    pub screen: EnumOption<Screen>,
+
+    pub adsr: AdsrOptions,
+    pub scope: ScopeOptions,
 }
 
 impl Options {
     pub fn new() -> Options {
         Options {
-            modify: false,
-            selected: 0,
-            delay_len: NumOption{
-                name: "delayln".into(),
-                value: 511,
-                step: 1,
-                min: 128,
-                max: 511,
+            modify: true,
+            screen: EnumOption {
+                name: "screen".into(),
+                value: Screen::Adsr,
             },
-            attack_ms: NumOption{
-                name: "attack".into(),
-                value: 100,
-                step: 50,
-                min: 0,
-                max: 5000,
+            adsr: AdsrOptions {
+                selected: None,
+                attack_ms: NumOption{
+                    name: "attack".into(),
+                    value: 100,
+                    step: 50,
+                    min: 0,
+                    max: 5000,
+                },
+                decay_ms: NumOption{
+                    name: "decay".into(),
+                    value: 100,
+                    step: 50,
+                    min: 0,
+                    max: 5000,
+                },
+                release_ms: NumOption{
+                    name: "release".into(),
+                    value: 300,
+                    step: 50,
+                    min: 0,
+                    max: 5000,
+                },
+                resonance: NumOption{
+                    name: "reso".into(),
+                    value: 10000,
+                    step: 1000,
+                    min: 0,
+                    max: 20000,
+                },
             },
-            decay_ms: NumOption{
-                name: "decay".into(),
-                value: 100,
-                step: 50,
-                min: 0,
-                max: 5000,
-            },
-            release_ms: NumOption{
-                name: "release".into(),
-                value: 300,
-                step: 50,
-                min: 0,
-                max: 5000,
-            },
-            resonance: NumOption{
-                name: "reso".into(),
-                value: 10000,
-                step: 1000,
-                min: 0,
-                max: 20000,
-            },
-            enum_test: EnumOption{
-                name: "enumt".into(),
-                value: EnumTest::ValueA,
-            },
+            scope: ScopeOptions {
+                selected: None,
+                delay_len: NumOption{
+                    name: "delayln".into(),
+                    value: 511,
+                    step: 1,
+                    min: 128,
+                    max: 511,
+                },
+                enum_test: EnumOption{
+                    name: "enumt".into(),
+                    value: EnumTest::ValueA,
+                },
+            }
         }
     }
 
@@ -98,45 +131,79 @@ impl Options {
     }
 
     pub fn tick_up(&mut self) {
-        let selected = self.selected;
-        if self.modify {
-            self.view_mut()[selected].tick_up();
-        } else if selected < self.view().len()-1 {
-            self.selected = selected + 1;
+        if let Some(n_selected) = self.selected() {
+            if self.modify {
+                self.view_mut()[n_selected].tick_up();
+            } else if n_selected < self.view().len()-1 {
+                *self.selected_mut() = Some(n_selected + 1);
+            }
+        } else if self.modify {
+            self.screen.tick_up();
+        } else if !self.view().is_empty() {
+            *self.selected_mut() = Some(0);
         }
     }
 
     pub fn tick_down(&mut self) {
-        let selected = self.selected;
-        if self.modify {
-            self.view_mut()[selected].tick_down();
-        } else if selected != 0 {
-            self.selected = selected - 1;
+        if let Some(n_selected) = self.selected() {
+            if self.modify {
+                self.view_mut()[n_selected].tick_down();
+            } else if n_selected != 0 {
+                *self.selected_mut() = Some(n_selected - 1);
+            } else {
+                *self.selected_mut() = None;
+            }
+        } else if self.modify {
+            self.screen.tick_down();
+        }
+    }
+
+    pub fn selected(&self) -> Option<usize> {
+        match self.screen.value {
+            Screen::Adsr => self.adsr.selected,
+            Screen::Scope => self.scope.selected,
+        }
+    }
+
+    pub fn selected_mut(&mut self) -> &mut Option<usize> {
+        match self.screen.value {
+            Screen::Adsr => &mut self.adsr.selected,
+            Screen::Scope => &mut self.scope.selected,
         }
     }
 
     #[allow(dead_code)]
-    pub fn view(&self) -> [& dyn OptionTrait; 6] {
-        [
-            &self.enum_test,
-            &self.attack_ms,
-            &self.decay_ms,
-            &self.release_ms,
-            &self.resonance,
-            &self.delay_len,
-        ]
+    pub fn view(&self) -> OptionView {
+        match self.screen.value {
+            Screen::Adsr => OptionView::from_slice(&[
+                &self.adsr.attack_ms,
+                &self.adsr.decay_ms,
+                &self.adsr.release_ms,
+                &self.adsr.resonance,
+            ]),
+            Screen::Scope => OptionView::from_slice(&[
+                &self.scope.delay_len,
+                &self.scope.enum_test,
+            ]),
+        }.unwrap()
     }
 
     #[allow(dead_code)]
-    pub fn view_mut(&mut self) -> [&mut dyn OptionTrait; 6] {
-        [
-            &mut self.enum_test,
-            &mut self.attack_ms,
-            &mut self.decay_ms,
-            &mut self.release_ms,
-            &mut self.resonance,
-            &mut self.delay_len,
-        ]
+    fn view_mut(&mut self) -> OptionViewMut {
+        let mut r = OptionViewMut::new();
+        match self.screen.value {
+            Screen::Adsr => {
+                r.push(&mut self.adsr.attack_ms).ok();
+                r.push(&mut self.adsr.decay_ms).ok();
+                r.push(&mut self.adsr.release_ms).ok();
+                r.push(&mut self.adsr.resonance).ok();
+            },
+            Screen::Scope => {
+                r.push(&mut self.scope.delay_len).ok();
+                r.push(&mut self.scope.enum_test).ok();
+            },
+        }
+        r
     }
 }
 
