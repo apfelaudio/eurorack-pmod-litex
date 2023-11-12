@@ -364,7 +364,7 @@ where
     let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
 
     // Should always succeed if the above CS runs.
-    let opts_view = opts.view();
+    let opts_view = opts.view().options();
 
     let vy: usize = 205;
 
@@ -372,7 +372,7 @@ where
     Text::with_alignment(
         opts.screen.value.into(),
         Point::new(5, (vy-10) as i32),
-        match (opts.selected(), opts.modify) {
+        match (opts.view().selected(), opts.modify) {
             (None, _) => font_small_white,
             _ => font_small_grey,
         },
@@ -381,7 +381,7 @@ where
 
     for (n, opt) in opts_view.iter().enumerate() {
         let mut font = font_small_grey;
-        if let Some(n_selected) = opts.selected() {
+        if let Some(n_selected) = opts.view().selected() {
             if n_selected == n {
                 font = font_small_white;
                 if opts.modify {

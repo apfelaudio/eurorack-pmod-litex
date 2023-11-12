@@ -4,14 +4,21 @@ use heapless::Vec;
 use strum_macros::{EnumIter, IntoStaticStr};
 
 pub type OptionString = String<32>;
-pub type OptionView<'a> = Vec<&'a dyn OptionTrait, 10>;
-pub type OptionViewMut<'a> = Vec<&'a mut dyn OptionTrait, 10>;
+pub type OptionVec<'a> = Vec<&'a dyn OptionTrait, 10>;
+pub type OptionVecMut<'a> = Vec<&'a mut dyn OptionTrait, 10>;
 
 pub trait OptionTrait {
     fn name(&self) -> &OptionString;
     fn value(&self) -> OptionString;
     fn tick_up(&mut self);
     fn tick_down(&mut self);
+}
+
+pub trait OptionView {
+    fn selected(&self) -> Option<usize>;
+    fn set_selected(&mut self, s: Option<usize>);
+    fn options(&self) -> OptionVec;
+    fn options_mut(&mut self) -> OptionVecMut;
 }
 
 #[derive(Clone)]
@@ -44,7 +51,6 @@ pub enum Screen {
     Scope,
 }
 
-
 #[derive(Clone)]
 pub struct AdsrOptions {
     pub selected: Option<usize>,
@@ -60,6 +66,37 @@ pub struct ScopeOptions {
     pub delay_len: NumOption<u32>,
     pub enum_test: EnumOption<EnumTest>,
 }
+
+macro_rules! impl_option_view {
+    ($struct_name:ident, $($field:ident),*) => {
+        impl OptionView for $struct_name {
+            fn selected(&self) -> Option<usize> {
+                self.selected
+            }
+
+            fn set_selected(&mut self, s: Option<usize>) {
+                self.selected = s;
+            }
+
+            fn options(&self) -> OptionVec {
+                OptionVec::from_slice(&[$(&self.$field),*]).unwrap()
+            }
+
+            fn options_mut(&mut self) -> OptionVecMut {
+                let mut r = OptionVecMut::new();
+                $(r.push(&mut self.$field).ok();)*
+                r
+            }
+        }
+    };
+}
+
+impl_option_view!(AdsrOptions,
+                  attack_ms, decay_ms, release_ms, resonance);
+
+impl_option_view!(ScopeOptions,
+                  delay_len, enum_test);
+
 
 #[derive(Clone)]
 pub struct Options {
@@ -131,79 +168,47 @@ impl Options {
     }
 
     pub fn tick_up(&mut self) {
-        if let Some(n_selected) = self.selected() {
+        if let Some(n_selected) = self.view().selected() {
             if self.modify {
-                self.view_mut()[n_selected].tick_up();
-            } else if n_selected < self.view().len()-1 {
-                *self.selected_mut() = Some(n_selected + 1);
+                self.view_mut().options_mut()[n_selected].tick_up();
+            } else if n_selected < self.view().options().len()-1 {
+                self.view_mut().set_selected(Some(n_selected + 1));
             }
         } else if self.modify {
             self.screen.tick_up();
-        } else if !self.view().is_empty() {
-            *self.selected_mut() = Some(0);
+        } else if !self.view().options().is_empty() {
+            self.view_mut().set_selected(Some(0));
         }
     }
 
     pub fn tick_down(&mut self) {
-        if let Some(n_selected) = self.selected() {
+        if let Some(n_selected) = self.view().selected() {
             if self.modify {
-                self.view_mut()[n_selected].tick_down();
+                self.view_mut().options_mut()[n_selected].tick_down();
             } else if n_selected != 0 {
-                *self.selected_mut() = Some(n_selected - 1);
+                self.view_mut().set_selected(Some(n_selected - 1));
             } else {
-                *self.selected_mut() = None;
+                self.view_mut().set_selected(None);
             }
         } else if self.modify {
             self.screen.tick_down();
         }
     }
 
-    pub fn selected(&self) -> Option<usize> {
+    #[allow(dead_code)]
+    pub fn view(&self) -> &dyn OptionView {
         match self.screen.value {
-            Screen::Adsr => self.adsr.selected,
-            Screen::Scope => self.scope.selected,
-        }
-    }
-
-    pub fn selected_mut(&mut self) -> &mut Option<usize> {
-        match self.screen.value {
-            Screen::Adsr => &mut self.adsr.selected,
-            Screen::Scope => &mut self.scope.selected,
+            Screen::Adsr => &self.adsr,
+            Screen::Scope => &self.scope,
         }
     }
 
     #[allow(dead_code)]
-    pub fn view(&self) -> OptionView {
+    fn view_mut(&mut self) -> &mut dyn OptionView {
         match self.screen.value {
-            Screen::Adsr => OptionView::from_slice(&[
-                &self.adsr.attack_ms,
-                &self.adsr.decay_ms,
-                &self.adsr.release_ms,
-                &self.adsr.resonance,
-            ]),
-            Screen::Scope => OptionView::from_slice(&[
-                &self.scope.delay_len,
-                &self.scope.enum_test,
-            ]),
-        }.unwrap()
-    }
-
-    #[allow(dead_code)]
-    fn view_mut(&mut self) -> OptionViewMut {
-        let mut r = OptionViewMut::new();
-        match self.screen.value {
-            Screen::Adsr => {
-                r.push(&mut self.adsr.attack_ms).ok();
-                r.push(&mut self.adsr.decay_ms).ok();
-                r.push(&mut self.adsr.release_ms).ok();
-                r.push(&mut self.adsr.resonance).ok();
-            },
-            Screen::Scope => {
-                r.push(&mut self.scope.delay_len).ok();
-                r.push(&mut self.scope.enum_test).ok();
-            },
+            Screen::Adsr => &mut self.adsr,
+            Screen::Scope => &mut self.scope,
         }
-        r
     }
 }
 
