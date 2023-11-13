@@ -1,5 +1,6 @@
 #![allow(unused_macros)]
 
+use litex_hal::prelude::*;
 use litex_pac as pac;
 use litex_hal::uart::UartError;
 
@@ -7,6 +8,7 @@ pub const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
 
 pub trait EurorackPmod {
     fn reset_line(&self, set_high: bool);
+    fn reset(&self, timer: &mut Timer);
     fn eeprom_serial(&self) -> u32;
     fn jack(&self) -> u8;
     fn input(&self, index: usize) -> i16;
@@ -27,6 +29,7 @@ pub trait KarlsenLpf {
 
 pub trait PwmLed {
     fn reset_line(&self, set_high: bool);
+    fn reset(&self, timer: &mut Timer);
     fn led(&self, ix: usize, value: u8);
 }
 
@@ -35,6 +38,12 @@ macro_rules! eurorack_pmod {
         $(impl EurorackPmod for $t {
             fn reset_line(&self, set_high: bool) {
                 self.csr_reset.write(|w| unsafe { w.bits(set_high as u32) });
+            }
+
+            fn reset(&self, timer: &mut Timer) {
+                self.reset_line(true);
+                timer.delay_ms(10u32);
+                self.reset_line(false);
             }
 
             fn eeprom_serial(&self) -> u32 {
@@ -105,6 +114,11 @@ macro_rules! pwm_led {
         $(impl PwmLed for $t {
             fn reset_line(&self, set_high: bool) {
                 self.csr_reset.write(|w| unsafe { w.bits(set_high as u32) });
+            }
+            fn reset(&self, timer: &mut Timer) {
+                self.reset_line(true);
+                timer.delay_ms(10u32);
+                self.reset_line(false);
             }
             fn led(&self, ix: usize, value: u8) {
                 unsafe {

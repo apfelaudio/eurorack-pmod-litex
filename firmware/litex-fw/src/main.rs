@@ -136,12 +136,10 @@ impl Trace {
     }
 }
 
-fn dma_router0_handler(scope: &Mutex<RefCell<OScope>>) {
+fn dma_router0_handler(dma_router: &Mutex<DmaRouter>, scope: &Mutex<RefCell<OScope>>) {
     unsafe {
-        let peripherals = pac::Peripherals::steal();
-        let offset = peripherals.DMA_ROUTER0.offset_words.read().bits() as usize;
-
         critical_section::with(|cs| {
+            let offset = dma_router.borrow(cs).offset();
             let scope = &mut scope.borrow_ref_mut(cs);
             let mid = (BUF_SZ_WORDS/2)+1;
             let end = BUF_SZ_WORDS-1;
@@ -447,7 +445,7 @@ impl LedBreathe {
 struct Encoder {
     encoder: pac::ROTARY_ENCODER,
     button: pac::ENCODER_BUTTON,
-    enc_last: u32,
+    enc_last: u8,
     btn_held_ms: u32,
     short_press: bool,
     long_press: bool,
@@ -457,7 +455,7 @@ struct Encoder {
 impl Encoder {
     // NOTE: not easily reuseable pecause of pac naming?
     fn new(encoder: pac::ROTARY_ENCODER, button: pac::ENCODER_BUTTON) -> Self {
-        let enc_last: u32 = encoder.csr_state.read().bits() >> 2;
+        let enc_last: u8 = encoder.csr_state.read().bits() as u8;
         Self {
             encoder,
             button,
@@ -470,14 +468,17 @@ impl Encoder {
     }
 
     fn update_ticks(&mut self, ms_per_tick: u32) {
-        let enc_now: u32 = self.encoder.csr_state.read().bits() >> 2;
+        let enc_now: u8 = self.encoder.csr_state.read().bits() as u8;
         let mut enc_delta: i32 = (enc_now as i32) - (self.enc_last as i32);
-        if enc_delta > 10 {
-            enc_delta = -1;
+
+        // encoder tick over/underflow: source is an 8-bit counter.
+        let m = u8::MAX as i32;
+        if enc_delta > m/2 {
+            enc_delta = m - enc_delta;
+        } else if enc_delta < -m/2 {
+            enc_delta += m;
         }
-        if enc_delta < -10 {
-            enc_delta = 1;
-        }
+
         self.enc_last = enc_now;
 
         if self.button.in_.read().bits() != 0 {
@@ -509,8 +510,8 @@ impl Encoder {
     }
 
     fn pending_ticks(&mut self) -> i32 {
-        let result = self.ticks_since_last_read;
-        self.ticks_since_last_read = 0;
+        let result = self.ticks_since_last_read >> 2;
+        self.ticks_since_last_read -= result << 2;
         result
     }
 }
@@ -549,6 +550,28 @@ impl SpiDma {
             self.spi_dma.start.write(|w| w.start().bit(true));
             self.spi_dma.start.write(|w| w.start().bit(false));
         }
+    }
+}
+
+struct DmaRouter {
+    reg: pac::DMA_ROUTER0,
+}
+
+impl DmaRouter {
+    fn new(reg: pac::DMA_ROUTER0) -> Self {
+        unsafe {
+            reg.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
+            reg.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
+            reg.enable.write(|w| w.bits(1u32));
+            reg.ev_enable.write(|w| w.half().bit(true));
+        }
+        Self {
+            reg
+        }
+    }
+
+    fn offset(&self) -> usize {
+        self.reg.offset_words.read().bits() as usize
     }
 }
 
@@ -616,6 +639,56 @@ where
     Ok(())
 }
 
+fn draw_main<D>(d: &mut D,
+                opts: opt::Options,
+                voices: [Voice; N_VOICES],
+                scope_samples: [i16; SCOPE_SAMPLES],
+                irq0_len_us: u32,
+                trace_main_len_us: u32) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Gray4>,
+{
+
+    let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
+
+
+    Text::with_alignment(
+        "POLYPHONIZER",
+        Point::new(d.bounding_box().center().x, 10),
+        character_style,
+        Alignment::Center,
+    )
+    .draw(d)?;
+
+    if opts.screen.value == opt::Screen::Adsr  {
+        for (n_voice, voice) in voices.iter().enumerate() {
+            draw_voice(d, (55+37*n_voice) as u32,
+                       n_voice as u32, voice)?;
+        }
+    }
+
+    draw_options(d, &opts)?;
+
+    draw_ms(d, trace_main_len_us,
+            Point::new(5, 255), character_style)?;
+    draw_ms(d, irq0_len_us,
+            Point::new(5, 245), character_style)?;
+
+    if opts.screen.value == opt::Screen::Scope  {
+        let mut points: [Point; 64] = [Point::new(0, 0); 64];
+        for (n, point) in points.iter_mut().enumerate() {
+            point.x = n as i32;
+            point.y = 30 + (scope_samples[n] >> 10) as i32;
+        }
+        Polyline::new(&points)
+            .into_styled(thin_stroke)
+            .draw(d)?;
+    }
+
+    Ok(())
+}
+
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
@@ -623,47 +696,17 @@ fn main() -> ! {
     log::init(peripherals.UART);
     log::info!("hello from litex-fw!");
 
-    let pmod0 = peripherals.EURORACK_PMOD0;
-
-    let pca9635 = peripherals.PCA9635;
-
-
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
-    pca9635.reset_line(true);
-    pmod0.reset_line(true);
-    timer.delay_ms(10u32);
-    pca9635.reset_line(false);
-    pmod0.reset_line(false);
+    peripherals.EURORACK_PMOD0.reset(&mut timer);
+    peripherals.PCA9635.reset(&mut timer);
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
-
-    let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-
-    timer.set_periodic_event(TICK_MS);
-
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
-
-    unsafe {
-
-        peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
-        peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
-        peripherals.DMA_ROUTER0.enable.write(|w| w.bits(1u32));
-        peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
-
-        // Enable interrupts from DMA router (vexriscv specific register)
-        vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
-                                        (1 << (pac::Interrupt::TIMER0 as usize)) );
-
-        // Enable machine external interrupts (basically everything added on by LiteX).
-        riscv::register::mie::set_mext();
-    }
-
-    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
-
+    let dma_router = Mutex::new(DmaRouter::new(peripherals.DMA_ROUTER0));
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
-    let breathe = LedBreathe::new(pca9635);
+    let breathe = LedBreathe::new(peripherals.PCA9635);
     let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 
     let opts = Mutex::new(RefCell::new(opt::Options::new()));
@@ -672,7 +715,7 @@ fn main() -> ! {
 
     let mut trace_main = Trace::new();
 
-    handler!(dma_router0 = || dma_router0_handler(&oscope));
+    handler!(dma_router0 = || dma_router0_handler(&dma_router, &oscope));
     handler!(timer0 = || timer0_handler(&state, &opts));
 
     scope(|scope| {
@@ -681,25 +724,24 @@ fn main() -> ! {
         scope.register(Interrupt::TIMER0, timer0);
 
         unsafe {
+            // Enable interrupts from DMA router (vexriscv specific register)
+            vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
+                                            (1 << (pac::Interrupt::TIMER0 as usize)) );
+
+            // Enable machine external interrupts (basically everything added on by LiteX).
+            riscv::register::mie::set_mext();
+
             // WARN: Don't do this before IRQs are registered for this scope,
             // otherwise you'll hang forever :)
             // Finally enable interrupts
             riscv::interrupt::enable();
         }
 
+        timer.set_periodic_event(TICK_MS);
+
         loop {
 
             trace_main.start(&timer);
-
-            Text::with_alignment(
-                "POLYPHONIZER",
-                Point::new(disp.bounding_box().center().x, 10),
-                character_style,
-                Alignment::Center,
-            )
-            .draw(&mut disp).ok();
-
-            // These should move to TIMER0 interrupt?
 
             let (opts, voices, irq0_len_us) = critical_section::with(|cs| {
                 let state = state.borrow_ref(cs);
@@ -708,38 +750,17 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-            if opts.screen.value == opt::Screen::Adsr  {
-                for (n_voice, voice) in voices.iter().enumerate() {
-                    draw_voice(&mut disp, (55+37*n_voice) as u32,
-                               n_voice as u32, voice).ok();
+            let scope_samples = critical_section::with(|cs| {
+                let scope = &mut oscope.borrow_ref_mut(cs);
+                if scope.full() {
+                    // samples_dbl can only ever update here
+                    scope.reset();
                 }
-            }
+                scope.samples_dbl
+            });
 
-            draw_options(&mut disp, &opts).ok();
-
-            draw_ms(&mut disp, trace_main.len_us(),
-                    Point::new(5, 255), character_style).ok();
-            draw_ms(&mut disp, irq0_len_us,
-                    Point::new(5, 245), character_style).ok();
-
-            if opts.screen.value == opt::Screen::Scope  {
-                let samples = critical_section::with(|cs| {
-                    let scope = &mut oscope.borrow_ref_mut(cs);
-                    if scope.full() {
-                        // samples_dbl can only ever update here
-                        scope.reset();
-                    }
-                    scope.samples_dbl
-                });
-                let mut points: [Point; 64] = [Point::new(0, 0); 64];
-                for (n, point) in points.iter_mut().enumerate() {
-                    point.x = n as i32;
-                    point.y = 30 + (samples[n] >> 10) as i32;
-                }
-                Polyline::new(&points)
-                    .into_styled(thin_stroke)
-                    .draw(&mut disp).ok();
-            }
+            draw_main(&mut disp, opts, voices, scope_samples,
+                      irq0_len_us, trace_main.len_us()).ok();
 
             let fb = disp.swap_clear();
             fence();
