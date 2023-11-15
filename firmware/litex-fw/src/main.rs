@@ -743,13 +743,6 @@ fn main() -> ! {
 
             trace_main.start(&timer);
 
-            let (opts, voices, irq0_len_us) = critical_section::with(|cs| {
-                let state = state.borrow_ref(cs);
-                (opts.borrow_ref(cs).clone(),
-                 state.voice_manager.voices.clone(),
-                 state.trace.len_us())
-            });
-
             let scope_samples = critical_section::with(|cs| {
                 let scope = &mut oscope.borrow_ref_mut(cs);
                 if scope.full() {
@@ -757,6 +750,13 @@ fn main() -> ! {
                     scope.reset();
                 }
                 scope.samples_dbl
+            });
+
+            let (opts, voices, irq0_len_us) = critical_section::with(|cs| {
+                let state = state.borrow_ref(cs);
+                (opts.borrow_ref(cs).clone(),
+                 state.voice_manager.voices.clone(),
+                 state.trace.len_us())
             });
 
             draw_main(&mut disp, opts, voices, scope_samples,
