@@ -18,15 +18,14 @@ use litex_interrupt::return_as_is;
 
 use ssd1322 as oled;
 
-mod log;
-mod voice;
-mod gw;
-mod opt;
-mod draw;
+use polyvec_lib::voice::*;
+use polyvec_lib::draw;
+use polyvec_lib::opt;
 
-use voice::*;
-use gw::*;
-use log::*;
+mod gw;
+mod log;
+use crate::gw::*;
+use crate::log::*;
 
 const N_VOICES: usize = 4;
 const SCOPE_SAMPLES: usize = 256;
@@ -251,9 +250,12 @@ impl State {
 }
 
 fn fence() {
-    unsafe {
-        asm!("fence iorw, iorw");
-        asm!(".word(0x500F)");
+    #[cfg(not(test))]
+    {
+        unsafe {
+            asm!("fence iorw, iorw");
+            asm!(".word(0x500F)");
+        }
     }
 }
 

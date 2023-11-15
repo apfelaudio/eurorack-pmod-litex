@@ -233,3 +233,60 @@ where
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use image::{ImageBuffer, RgbImage, Rgb};
+    use image::imageops::{rotate90, resize, FilterType};
+
+    struct FakeDisplay {
+        img: RgbImage,
+    }
+
+    impl DrawTarget for FakeDisplay {
+        type Color = Gray4;
+        type Error = core::convert::Infallible;
+
+        fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+        where
+            I: IntoIterator<Item = Pixel<Self::Color>>,
+        {
+            for Pixel(coord, color) in pixels.into_iter() {
+                if let Ok((x @ 0..=63, y @ 0..=255)) = coord.try_into() {
+                    *self.img.get_pixel_mut(y, 63-x) = Rgb([
+                        color.luma()<<5,
+                        color.luma()<<5,
+                        0
+                    ]);
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    impl OriginDimensions for FakeDisplay {
+        fn size(&self) -> Size {
+            Size::new(64, 64)
+        }
+    }
+
+    #[test]
+    fn draw_screen() {
+        let mut disp = FakeDisplay {
+            img: ImageBuffer::new(256, 64)
+        };
+        let opts = opt::Options::new();
+        let voices = VoiceManager::new().voices;
+        let scope_samples = [0i16; 64];
+
+        draw_main(&mut disp, opts, voices, &scope_samples, 1, 2).unwrap();
+
+        let rot = rotate90(&disp.img);
+        let rz = resize(&rot, 64*4, 256*4, FilterType::Nearest);
+
+        rz.save("test.png").unwrap();
+    }
+}

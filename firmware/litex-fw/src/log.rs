@@ -12,6 +12,7 @@ litex_hal::uart! {
 
 static mut UART_WRITER: Option<Uart> = None;
 
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(panic_info: &PanicInfo) -> ! {
     if let Some(location) = panic_info.location() {
