@@ -16,20 +16,13 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
-use embedded_graphics::{
-    pixelcolor::{Gray4, GrayColor},
-    primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, Line, Polyline},
-    mono_font::{ascii::FONT_4X6, ascii::FONT_5X7, MonoTextStyle},
-    prelude::*,
-    text::{Alignment, Text, renderer::TextRenderer},
-};
-
 use ssd1322 as oled;
 
 mod log;
 mod voice;
 mod gw;
 mod opt;
+mod draw;
 
 use voice::*;
 use gw::*;
@@ -257,158 +250,6 @@ impl State {
     }
 }
 
-fn draw_voice<D>(d: &mut D, sy: u32, ix: u32, voice: &Voice) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = Gray4>,
-{
-
-    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
-    let thin_stroke_grey = PrimitiveStyleBuilder::new()
-        .stroke_color(Gray4::new(0x3))
-        .stroke_width(1)
-        .build();
-    let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-    let title_y = 10u32;
-    let box_h = 20u32;
-    let box_y = title_y + 3u32 + box_h;
-
-    let mut s: String<32> = String::new();
-
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, box_y))
-        .into_styled(thin_stroke_grey)
-        .draw(d)?;
-
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, title_y))
-        .into_styled(thin_stroke)
-        .draw(d)?;
-
-    ufmt::uwrite!(&mut s, "CH {}", ix).ok();
-
-    Text::with_alignment(
-        &s,
-        Point::new(d.bounding_box().center().x, (sy as i32)+7),
-        character_style_h,
-        Alignment::Center,
-    )
-    .draw(d)?;
-
-
-    let mut stroke_gain = PrimitiveStyleBuilder::new()
-        .stroke_color(Gray4::new(0x1))
-        .stroke_width(1)
-        .build();
-
-    let mut stroke_idle = PrimitiveStyleBuilder::new()
-        .stroke_color(Gray4::new(0x1))
-        .stroke_width(1)
-        .build();
-
-    s.clear();
-    if voice.state != VoiceState::Idle {
-        let semitones = voice.note as i32 - 60i32;
-        if semitones > 0 {
-            ufmt::uwrite!(&mut s, "+").ok();
-        }
-        ufmt::uwrite!(&mut s, "{}", semitones).ok();
-
-        stroke_gain = PrimitiveStyleBuilder::new()
-            .stroke_color(Gray4::new((15f32 * voice.amplitude) as u8))
-            .stroke_width(1)
-            .build();
-
-        stroke_idle = PrimitiveStyleBuilder::new()
-            .stroke_color(Gray4::WHITE)
-            .stroke_width(1)
-            .build();
-    }
-
-    let filter_pos: i32 = (20f32 * voice.amplitude) as i32;
-
-    Line::new(Point::new(38, sy as i32 + 16),
-              Point::new(40+filter_pos-2, sy as i32 + 16))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Line::new(Point::new(40+filter_pos, sy as i32 + 24),
-              Point::new(55, sy as i32 + 24))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Line::new(Point::new(40+filter_pos-2, sy as i32 + 16),
-              Point::new(40+filter_pos, sy as i32 + 24))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Rectangle::new(Point::new(7, sy as i32 + 15), Size::new(19, 11))
-        .into_styled(stroke_idle)
-        .draw(d)?;
-
-    Text::new(
-        &s,
-        Point::new(9, sy as i32 + 22),
-        character_style_h,
-    )
-    .draw(d)?;
-
-
-    Ok(())
-}
-
-fn draw_options<D>(d: &mut D, opts: &opt::Options) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = Gray4>,
-{
-    let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
-    let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
-
-    // Should always succeed if the above CS runs.
-    let opts_view = opts.view().options();
-
-    let vy: usize = 205;
-
-    // Draw the current screen text
-    Text::with_alignment(
-        opts.screen.value.into(),
-        Point::new(5, (vy-10) as i32),
-        match (opts.view().selected(), opts.modify) {
-            (None, _) => font_small_white,
-            _ => font_small_grey,
-        },
-        Alignment::Left,
-    ).draw(d)?;
-
-    for (n, opt) in opts_view.iter().enumerate() {
-        let mut font = font_small_grey;
-        if let Some(n_selected) = opts.view().selected() {
-            if n_selected == n {
-                font = font_small_white;
-                if opts.modify {
-                    Text::with_alignment(
-                        "-",
-                        Point::new(62, (vy+10*n) as i32),
-                        font,
-                        Alignment::Left,
-                    ).draw(d)?;
-                }
-            }
-        }
-        Text::with_alignment(
-            opt.name(),
-            Point::new(5, (vy+10*n) as i32),
-            font,
-            Alignment::Left,
-        ).draw(d)?;
-        Text::with_alignment(
-            &opt.value(),
-            Point::new(60, (vy+10*n) as i32),
-            font,
-            Alignment::Right,
-        ).draw(d)?;
-    }
-
-    Ok(())
-}
-
 fn fence() {
     unsafe {
         asm!("fence iorw, iorw");
@@ -416,168 +257,6 @@ fn fence() {
     }
 }
 
-struct LedBreathe {
-    pca9635: pac::PCA9635,
-    v: u8,
-}
-
-impl LedBreathe {
-    fn new(pca9635: pac::PCA9635) -> Self {
-        Self {
-            pca9635,
-            v: 0u8,
-        }
-    }
-
-    fn tick(&mut self) {
-        self.v += 3;
-        for i in 0..=15 {
-            let this_v = self.v+i*16;
-            if this_v < 128 {
-                self.pca9635.led(i.into(), this_v);
-            } else {
-                self.pca9635.led(i.into(), 128-this_v);
-            }
-        }
-    }
-}
-
-struct Encoder {
-    encoder: pac::ROTARY_ENCODER,
-    button: pac::ENCODER_BUTTON,
-    enc_last: u8,
-    btn_held_ms: u32,
-    short_press: bool,
-    long_press: bool,
-    ticks_since_last_read: i32,
-}
-
-impl Encoder {
-    // NOTE: not easily reuseable pecause of pac naming?
-    fn new(encoder: pac::ROTARY_ENCODER, button: pac::ENCODER_BUTTON) -> Self {
-        let enc_last: u8 = encoder.csr_state.read().bits() as u8;
-        Self {
-            encoder,
-            button,
-            enc_last,
-            btn_held_ms: 0,
-            short_press: false,
-            long_press: false,
-            ticks_since_last_read: 0,
-        }
-    }
-
-    fn update_ticks(&mut self, ms_per_tick: u32) {
-        let enc_now: u8 = self.encoder.csr_state.read().bits() as u8;
-        let mut enc_delta: i32 = (enc_now as i32) - (self.enc_last as i32);
-
-        // encoder tick over/underflow: source is an 8-bit counter.
-        let m = u8::MAX as i32;
-        if enc_delta > m/2 {
-            enc_delta = m - enc_delta;
-        } else if enc_delta < -m/2 {
-            enc_delta += m;
-        }
-
-        self.enc_last = enc_now;
-
-        if self.button.in_.read().bits() != 0 {
-            self.btn_held_ms += ms_per_tick;
-        } else {
-            if self.btn_held_ms > 0 {
-                self.short_press = true;
-            }
-            self.btn_held_ms = 0;
-        }
-
-        if self.btn_held_ms > 3000 {
-            self.long_press = true;
-        }
-
-        self.ticks_since_last_read += enc_delta;
-    }
-
-    fn pending_short_press(&mut self) -> bool {
-        let result = self.short_press;
-        self.short_press = false;
-        result
-    }
-
-    fn pending_long_press(&mut self) -> bool {
-        let result = self.long_press;
-        self.long_press = false;
-        result
-    }
-
-    fn pending_ticks(&mut self) -> i32 {
-        let result = self.ticks_since_last_read >> 2;
-        self.ticks_since_last_read -= result << 2;
-        result
-    }
-}
-
-struct SpiDma {
-    spi_dma: pac::SPI_DMA,
-}
-
-impl SpiDma {
-    fn new(spi_dma: pac::SPI_DMA,
-           target: *const pac::oled_spi::RegisterBlock) -> Self {
-        unsafe {
-            // TODO: Any way to get RegisterBlock sub-addresses automagically?
-            spi_dma.spi_control_reg_address.write(
-                |w| w.bits(target as u32));
-            spi_dma.spi_status_reg_address.write(
-                |w| w.bits(target as u32 + 0x04));
-            spi_dma.spi_mosi_reg_address.write(
-                |w| w.bits(target as u32 + 0x08));
-        }
-        Self {
-            spi_dma
-        }
-    }
-
-    fn block(&self) {
-        while self.spi_dma.done.read().bits() == 0 {
-            // Wait for an existing transfer to complete.
-        }
-    }
-
-    fn transfer(&mut self, data_ptr: *const u8, data_len: usize) {
-        unsafe {
-            self.spi_dma.read_base.write(|w| w.bits(data_ptr as u32));
-            self.spi_dma.read_length.write(|w| w.bits(data_len as u32));
-            self.spi_dma.start.write(|w| w.start().bit(true));
-            self.spi_dma.start.write(|w| w.start().bit(false));
-        }
-    }
-}
-
-struct DmaRouter {
-    reg: pac::DMA_ROUTER0,
-}
-
-impl DmaRouter {
-    fn new(reg: pac::DMA_ROUTER0) -> Self {
-        unsafe {
-            reg.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
-            reg.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
-            reg.enable.write(|w| w.bits(1u32));
-            reg.ev_enable.write(|w| w.half().bit(true));
-        }
-        Self {
-            reg
-        }
-    }
-
-    fn offset(&self) -> usize {
-        self.reg.offset_words.read().bits() as usize
-    }
-}
-
-unsafe fn reset_soc(ctrl: &pac::CTRL) {
-    ctrl.reset.write(|w| w.soc_rst().bit(true));
-}
 
 fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
     -> ssd1322::Display<ssd1322::SpiInterface<OledSpi, OledGpio>> {
@@ -620,74 +299,6 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
     disp
 }
 
-fn draw_ms<D, S, C>(d: &mut D, us: u32, pos: Point, style: S) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = C>,
-    S: TextRenderer<Color = C>,
-{
-    let mut s: String<64> = String::new();
-    ufmt::uwrite!(&mut s, "{}.", us / 1_000u32).ok();
-    ufmt::uwrite!(&mut s, "{}ms\n", us % 1_000u32).ok();
-    Text::with_alignment(
-        &s,
-        pos,
-        style,
-        Alignment::Left,
-    )
-    .draw(d)?;
-
-    Ok(())
-}
-
-fn draw_main<D>(d: &mut D,
-                opts: opt::Options,
-                voices: [Voice; N_VOICES],
-                scope_samples: [i16; SCOPE_SAMPLES],
-                irq0_len_us: u32,
-                trace_main_len_us: u32) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = Gray4>,
-{
-
-    let character_style = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
-    let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
-
-
-    Text::with_alignment(
-        "POLYPHONIZER",
-        Point::new(d.bounding_box().center().x, 10),
-        character_style,
-        Alignment::Center,
-    )
-    .draw(d)?;
-
-    if opts.screen.value == opt::Screen::Adsr  {
-        for (n_voice, voice) in voices.iter().enumerate() {
-            draw_voice(d, (55+37*n_voice) as u32,
-                       n_voice as u32, voice)?;
-        }
-    }
-
-    draw_options(d, &opts)?;
-
-    draw_ms(d, trace_main_len_us,
-            Point::new(5, 255), character_style)?;
-    draw_ms(d, irq0_len_us,
-            Point::new(5, 245), character_style)?;
-
-    if opts.screen.value == opt::Screen::Scope  {
-        let mut points: [Point; 64] = [Point::new(0, 0); 64];
-        for (n, point) in points.iter_mut().enumerate() {
-            point.x = n as i32;
-            point.y = 30 + (scope_samples[n] >> 10) as i32;
-        }
-        Polyline::new(&points)
-            .into_styled(thin_stroke)
-            .draw(d)?;
-    }
-
-    Ok(())
-}
 
 #[entry]
 fn main() -> ! {
@@ -703,7 +314,10 @@ fn main() -> ! {
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
-    let dma_router = Mutex::new(DmaRouter::new(peripherals.DMA_ROUTER0));
+    let dma_router = Mutex::new(
+        DmaRouter::new(peripherals.DMA_ROUTER0,
+                       unsafe { BUF_IN.as_mut_ptr() as u32 },
+                       BUF_SZ_WORDS as u32));
     let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
     let breathe = LedBreathe::new(peripherals.PCA9635);
@@ -759,8 +373,8 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-            draw_main(&mut disp, opts, voices, scope_samples,
-                      irq0_len_us, trace_main.len_us()).ok();
+            draw::draw_main(&mut disp, opts, voices, &scope_samples,
+                            irq0_len_us, trace_main.len_us()).ok();
 
             let fb = disp.swap_clear();
             fence();
