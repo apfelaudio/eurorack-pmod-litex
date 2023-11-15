@@ -11,7 +11,7 @@ use embedded_graphics::{
 use crate::voice::*;
 use crate::opt;
 
-fn draw_voice<D>(d: &mut D, sy: u32, ix: u32, voice: &Voice) -> Result<(), D::Error>
+fn draw_voice<D>(d: &mut D, sx: i32, sy: u32, ix: u32, voice: &Voice) -> Result<(), D::Error>
 where
     D: DrawTarget<Color = Gray4>,
 {
@@ -22,27 +22,30 @@ where
         .stroke_width(1)
         .build();
     let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+    let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     let title_y = 10u32;
     let box_h = 20u32;
     let box_y = title_y + 3u32 + box_h;
 
     let mut s: String<32> = String::new();
 
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, box_y))
+    // Voice box
+    Rectangle::new(Point::new(sx, sy as i32), Size::new(30, box_y))
         .into_styled(thin_stroke_grey)
         .draw(d)?;
 
-    Rectangle::new(Point::new(2, sy as i32), Size::new(60, title_y))
+    // Title box
+    Rectangle::new(Point::new(sx, sy as i32), Size::new(30, title_y))
         .into_styled(thin_stroke)
         .draw(d)?;
 
+    // Channel title
     ufmt::uwrite!(&mut s, "CH {}", ix).ok();
-
     Text::with_alignment(
         &s,
-        Point::new(d.bounding_box().center().x, (sy as i32)+7),
+        Point::new(sx+5, (sy as i32)+7),
         character_style_h,
-        Alignment::Center,
+        Alignment::Left,
     )
     .draw(d)?;
 
@@ -76,33 +79,43 @@ where
             .build();
     }
 
-    let filter_pos: i32 = (20f32 * voice.amplitude) as i32;
-
-    Line::new(Point::new(38, sy as i32 + 16),
-              Point::new(40+filter_pos-2, sy as i32 + 16))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Line::new(Point::new(40+filter_pos, sy as i32 + 24),
-              Point::new(55, sy as i32 + 24))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Line::new(Point::new(40+filter_pos-2, sy as i32 + 16),
-              Point::new(40+filter_pos, sy as i32 + 24))
-              .into_styled(stroke_gain)
-              .draw(d)?;
-
-    Rectangle::new(Point::new(7, sy as i32 + 15), Size::new(19, 11))
-        .into_styled(stroke_idle)
-        .draw(d)?;
+    // Pitch text + box
 
     Text::new(
         &s,
-        Point::new(9, sy as i32 + 22),
-        character_style_h,
+        Point::new(sx+9, sy as i32 + 18),
+        font_small_white,
     )
     .draw(d)?;
+
+    Rectangle::new(Point::new(sx+2, sy as i32 + 11), Size::new(26, 11))
+        .into_styled(stroke_idle)
+        .draw(d)?;
+
+
+    // LPF visualization
+
+    let filter_x = sx+2;
+    let filter_y = (sy as i32) + 23;
+    let filter_w = 23;
+    let filter_h = 7;
+    let filter_skew = 2;
+    let filter_pos: i32 = ((filter_w as f32) * voice.amplitude) as i32;
+
+    Line::new(Point::new(filter_x,            filter_y),
+              Point::new(filter_x+filter_pos, filter_y))
+              .into_styled(stroke_gain)
+              .draw(d)?;
+
+    Line::new(Point::new(filter_x+filter_skew+filter_pos, filter_y+filter_h),
+              Point::new(filter_x+filter_w+filter_skew,               filter_y+filter_h))
+              .into_styled(stroke_gain)
+              .draw(d)?;
+
+    Line::new(Point::new(filter_x+filter_pos, filter_y),
+              Point::new(filter_x+filter_pos+filter_skew, filter_y+filter_h))
+              .into_styled(stroke_gain)
+              .draw(d)?;
 
 
     Ok(())
@@ -115,7 +128,6 @@ where
     let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     let font_small_grey = MonoTextStyle::new(&FONT_4X6, Gray4::new(0x4));
 
-    // Should always succeed if the above CS runs.
     let opts_view = opts.view().options();
 
     let vy: usize = 205;
@@ -196,6 +208,7 @@ where
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
 
+    /*
     Text::with_alignment(
         "POLYPHONIZER",
         Point::new(d.bounding_box().center().x, 10),
@@ -203,11 +216,17 @@ where
         Alignment::Center,
     )
     .draw(d)?;
+    */
 
     if opts.screen.value == opt::Screen::Adsr  {
         for (n_voice, voice) in voices.iter().enumerate() {
-            draw_voice(d, (55+37*n_voice) as u32,
-                       n_voice as u32, voice)?;
+            if n_voice % 2 == 0 {
+                draw_voice(d, 1, (1+35*n_voice/2) as u32,
+                           n_voice as u32, voice)?;
+            } else {
+                draw_voice(d, 33, (1+35*(n_voice/2)) as u32,
+                           n_voice as u32, voice)?;
+            }
         }
     }
 
@@ -240,6 +259,7 @@ mod tests {
 
     use image::{ImageBuffer, RgbImage, Rgb};
     use image::imageops::{rotate90, resize, FilterType};
+    use midi_types::MidiMessage;
 
     struct FakeDisplay {
         img: RgbImage,
@@ -279,10 +299,15 @@ mod tests {
             img: ImageBuffer::new(256, 64)
         };
         let opts = opt::Options::new();
-        let voices = VoiceManager::new().voices;
+        let mut voice_manager = VoiceManager::new();
         let scope_samples = [0i16; 64];
 
-        draw_main(&mut disp, opts, voices, &scope_samples, 1, 2).unwrap();
+        voice_manager.event(MidiMessage::NoteOn(0.into(), 70.into(), 64.into()), 0u32);
+        voice_manager.tick(10u32, &opts);
+        voice_manager.tick(50u32, &opts);
+        voice_manager.tick(200u32, &opts);
+
+        draw_main(&mut disp, opts, voice_manager.voices, &scope_samples, 1, 2).unwrap();
 
         let rot = rotate90(&disp.img);
         let rz = resize(&rot, 64*4, 256*4, FilterType::Nearest);
