@@ -1,3 +1,4 @@
+#![cfg(not(test))]
 #![allow(unused_imports)]
 
 #![no_std]
