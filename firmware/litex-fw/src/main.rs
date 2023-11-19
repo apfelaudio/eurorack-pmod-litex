@@ -188,6 +188,10 @@ unsafe fn irq_handler() {
     }
 
     // TODO: grab these correctly from PAC!
+    // These are already in the SVD as constants, but not as
+    // sub-nodes of the peripheral parents, so they aren't
+    // rendered in the svd2rust bindings.
+    //
     let irq_usb_device = 2usize;
     let irq_usb_setup  = 3usize;
     let irq_usb_in_ep  = 4usize;
@@ -367,6 +371,9 @@ fn main() -> ! {
 
     unsafe {
         // TODO: Issue device reset before init!
+        // strategy: build statically-linked C bindings
+        // in rs-sys crate such that we don't have to
+        // manually inject the amaranth constants.
         tusb_init();
     }
 
