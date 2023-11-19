@@ -161,6 +161,9 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
         let opts = &mut opts.borrow_ref_mut(cs);
         state.trace.start(&timer);
         state.tick(opts, uptime_ms);
+        unsafe {
+            tud_task();
+        }
         state.trace.end(&timer);
     });
 }
@@ -182,6 +185,19 @@ unsafe fn irq_handler() {
         TIMER0();
         peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
         fence();
+    }
+
+    // TODO: grab these correctly from PAC!
+    let irq_usb_device = 2usize;
+    let irq_usb_setup  = 3usize;
+    let irq_usb_in_ep  = 4usize;
+    let irq_usb_out_ep = 5usize;
+
+    if ((pending_irq & (1 << irq_usb_device)) != 0 ||
+        (pending_irq & (1 << irq_usb_setup)) != 0 ||
+        (pending_irq & (1 << irq_usb_in_ep)) != 0 ||
+        (pending_irq & (1 << irq_usb_out_ep)) != 0) {
+        dcd_int_handler(0);
     }
 
 }
@@ -350,9 +366,8 @@ fn main() -> ! {
     let mut trace_main = Trace::new();
 
     unsafe {
+        // TODO: Issue device reset before init!
         tusb_init();
-        dcd_int_handler(0);
-        tud_task();
     }
 
     handler!(dma_router0 = || dma_router0_handler(&dma_router, &oscope));
