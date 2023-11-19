@@ -56,7 +56,7 @@ where
     // Channel title
     let mut s: String<16> = String::new();
     ufmt::uwrite!(&mut s, "CH {}", ix).ok();
-    draw_title_box(d, &s, Point::new(sx, sy as i32), Size::new(30, 33))?;
+    draw_title_box(d, &s, Point::new(sx, sy as i32), Size::new(30, 30))?;
 
     let mut stroke_gain = PrimitiveStyleBuilder::new()
         .stroke_color(Gray4::new(0x1))
@@ -91,22 +91,17 @@ where
 
     Text::new(
         &s,
-        Point::new(sx+9, sy as i32 + 18),
+        Point::new(sx+9, sy as i32 + 16),
         font_small_white,
     )
     .draw(d)?;
 
-    Rectangle::new(Point::new(sx+2, sy as i32 + 11), Size::new(26, 11))
-        .into_styled(stroke_idle)
-        .draw(d)?;
-
-
     // LPF visualization
 
     let filter_x = sx+2;
-    let filter_y = (sy as i32) + 23;
+    let filter_y = (sy as i32) + 19;
     let filter_w = 23;
-    let filter_h = 7;
+    let filter_h = 8;
     let filter_skew = 2;
     let filter_pos: i32 = ((filter_w as f32) * voice.amplitude) as i32;
 
@@ -138,28 +133,31 @@ where
 
     let opts_view = opts.view().options();
 
-    let vy: usize = 152;
+    let vx: i32 = 129;
+    let vy: usize = 18;
 
     let screen_hl = match (opts.view().selected(), opts.modify) {
         (None, _) => true,
         _ => false,
     };
 
-    draw_title_box(d, &String::new(), Point::new(1, (vy-17) as i32), Size::new(62, 85))?;
+    draw_title_box(d, &String::new(), Point::new(vx, (vy-17) as i32), Size::new(62, 62))?;
 
     Text::with_alignment(
         opts.screen.value.into(),
-        Point::new(40, (vy-10) as i32),
+        Point::new(vx+40, (vy-10) as i32),
         if screen_hl { font_small_white } else { font_small_grey },
         Alignment::Left
     ).draw(d)?;
 
     Text::with_alignment(
         "OPTIONS: ",
-        Point::new(4, (vy-10) as i32),
+        Point::new(vx+4, (vy-10) as i32),
         if screen_hl { font_small_white } else { font_small_grey },
         Alignment::Left
     ).draw(d)?;
+
+    let vx = vx-2;
 
     for (n, opt) in opts_view.iter().enumerate() {
         let mut font = font_small_grey;
@@ -169,7 +167,7 @@ where
                 if opts.modify {
                     Text::with_alignment(
                         "-",
-                        Point::new(62, (vy+10*n) as i32),
+                        Point::new(vx+62, (vy+10*n) as i32),
                         font,
                         Alignment::Left,
                     ).draw(d)?;
@@ -178,13 +176,13 @@ where
         }
         Text::with_alignment(
             opt.name(),
-            Point::new(5, (vy+10*n) as i32),
+            Point::new(vx+5, (vy+10*n) as i32),
             font,
             Alignment::Left,
         ).draw(d)?;
         Text::with_alignment(
             &opt.value(),
-            Point::new(60, (vy+10*n) as i32),
+            Point::new(vx+60, (vy+10*n) as i32),
             font,
             Alignment::Right,
         ).draw(d)?;
@@ -227,10 +225,10 @@ where
 
     for (n_voice, voice) in voices.iter().enumerate() {
         if n_voice % 2 == 0 {
-            draw_voice(d, 1, (1+35*n_voice/2) as u32,
+            draw_voice(d, 1, (1+32*n_voice/2) as u32,
                        n_voice as u32, voice)?;
         } else {
-            draw_voice(d, 33, (1+35*(n_voice/2)) as u32,
+            draw_voice(d, 33, (1+32*(n_voice/2)) as u32,
                        n_voice as u32, voice)?;
         }
     }
@@ -239,23 +237,23 @@ where
 
     let mut s: String<16> = String::new();
     ufmt::uwrite!(&mut s, "STATS").ok();
-    draw_title_box(d, &s, Point::new(1, 222), Size::new(62, 32))?;
+    draw_title_box(d, &s, Point::new(128+64+1, 1), Size::new(62, 62))?;
 
     draw_ms(d, "main", trace_main_len_us,
-            Point::new(5, 249), font_small_white)?;
+            Point::new(128+64+5, 17), font_small_white)?;
     draw_ms(d, "irq0", irq0_len_us,
-            Point::new(5, 239), font_small_white)?;
+            Point::new(128+64+5, 24), font_small_white)?;
 
     {
         let mut s: String<16> = String::new();
         ufmt::uwrite!(&mut s, "SCOPE").ok();
-        draw_title_box(d, &s, Point::new(1, 71), Size::new(62, 62))?;
+        draw_title_box(d, &s, Point::new(65, 1), Size::new(62, 62))?;
 
         let mut points: [Point; 60] = [Point::new(0, 0); 60];
         for (n, point) in points.iter_mut().enumerate() {
             if n < scope_samples.len() {
-                point.x = 2 + n as i32;
-                point.y = 105 + (scope_samples[n] >> 10) as i32;
+                point.x = 66 + n as i32;
+                point.y = 32 + (scope_samples[n] >> 10) as i32;
             }
         }
         Polyline::new(&points)
@@ -287,8 +285,8 @@ mod tests {
             I: IntoIterator<Item = Pixel<Self::Color>>,
         {
             for Pixel(coord, color) in pixels.into_iter() {
-                if let Ok((x @ 0..=63, y @ 0..=255)) = coord.try_into() {
-                    *self.img.get_pixel_mut(y, 63-x) = Rgb([
+                if let Ok((x @ 0..=255, y @ 0..=63)) = coord.try_into() {
+                    *self.img.get_pixel_mut(x, y) = Rgb([
                         color.luma()<<5,
                         color.luma()<<5,
                         0
@@ -322,8 +320,7 @@ mod tests {
 
         draw_main(&mut disp, opts, voice_manager.voices, &scope_samples, 1, 2).unwrap();
 
-        let rot = rotate90(&disp.img);
-        let rz = resize(&rot, 64*4, 256*4, FilterType::Nearest);
+        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
 
         rz.save("test.png").unwrap();
     }
