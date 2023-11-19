@@ -27,47 +27,38 @@ from rtl.spi_dma import Wishbone2SPIDMA
 from rtl.dma_router import *
 
 _io_eurolut_proto1 = [
-    ("eurorack_pmod_p3b", 0,
-        Subsignal("mclk",    Pins("A3")),
-        Subsignal("pdn",     Pins("B1")),
-        Subsignal("i2c_sda", Pins("D2")),
-        Subsignal("i2c_scl", Pins("E2")),
-        Subsignal("sdin1",   Pins("D1")),
-        Subsignal("sdout1",  Pins("C1")),
-        Subsignal("lrck",    Pins("C2")),
-        Subsignal("bick",    Pins("E3")),
+    ("eurorack_pmod_p6a", 0,
+        # Global clock buffer through 74HC245PW,118
+        Subsignal("mclk",    Pins("J16")),
+        Subsignal("bick",    Pins("L5")),
+        Subsignal("lrck",    Pins("M4")),
+        Subsignal("pdn",     Pins("R3")),
+        # Local signals PMOD0
+        Subsignal("i2c_sda", Pins("L4")),
+        Subsignal("i2c_scl", Pins("N4")),
+        Subsignal("sdin1",   Pins("J18")),
+        Subsignal("sdout1",  Pins("P16")),
         IOStandard("LVCMOS33")
     ),
-    ("eurorack_pmod_p3a", 0,
-        Subsignal("mclk",    Pins("D20")),
-        Subsignal("pdn",     Pins("B19")),
-        Subsignal("i2c_sda", Pins("A19")),
-        Subsignal("i2c_scl", Pins("A18")),
-        Subsignal("sdin1",   Pins("C17")),
-        Subsignal("sdout1",  Pins("B18")),
-        Subsignal("lrck",    Pins("B20")),
-        Subsignal("bick",    Pins("F20")),
-        IOStandard("LVCMOS33")
-    ),
-   # ULPI wiring on proto1 is completely borked on schematic, below is correct :)
+   ("ulpi", 0,
+       Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+       Subsignal("clk",   Pins("W1")),
+       Subsignal("dir",   Pins("E16")),
+       Subsignal("nxt",   Pins("E17")),
+       Subsignal("stp",   Pins("R1")),
+       Subsignal("rst",   Pins("U1")),
+       IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
+   ),
+   # ULPI wiring on proto1 is completely borked on schematic, below is correct for proto1 :)
    #("ulpi", 0,
-   #    Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+   #    Subsignal("data",  Pins("E17 R1 E16 F4 E6 D16 D17 E5")),
    #    Subsignal("clk",   Pins("W1")),
-   #    Subsignal("dir",   Pins("E16")),
-   #    Subsignal("nxt",   Pins("E17")),
-   #    Subsignal("stp",   Pins("R1")),
+   #    Subsignal("dir",   Pins("F5")),
+   #    Subsignal("nxt",   Pins("D18")),
+   #    Subsignal("stp",   Pins("G5")),
    #    Subsignal("rst",   Pins("U1")),
    #    IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
    #),
-    ("ulpi", 0,
-        Subsignal("data",  Pins("E17 R1 E16 F4 E6 D16 D17 E5")),
-        Subsignal("clk",   Pins("W1")),
-        Subsignal("dir",   Pins("F5")),
-        Subsignal("nxt",   Pins("D18")),
-        Subsignal("stp",   Pins("G5")),
-        Subsignal("rst",   Pins("U1")),
-        IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
-    ),
     ("oled_spi", 0,
         Subsignal("clk",  Pins("Y2")),
         Subsignal("mosi", Pins("N2")),
@@ -296,8 +287,7 @@ def main():
 
     add_audio_clocks(soc)
 
-    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_p3a", mod_name="eurorack_pmod0")
-    #add_eurorack_pmod_mirror(soc, pads="eurorack_pmod_p3b", mod_name="eurorack_pmod1")
+    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_p6a", mod_name="eurorack_pmod0")
 
     add_oled(soc)
 
@@ -308,51 +298,6 @@ def main():
     add_pca9635_master(soc)
 
     soc.add_constant("FLASH_BOOT_ADDRESS", args.flash_boot)
-
-    # Useful to double-check connectivity ...
-    """
-    clkdiv_test = Signal(8)
-    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
-    pmod_aux = soc.platform.request("pmod_aux1")
-    soc.comb += [
-        pmod_aux.p5.eq(clkdiv_test[-1]),
-        pmod_aux.p6.eq(clkdiv_test[-2]),
-        pmod_aux.p7.eq(clkdiv_test[-3]),
-        pmod_aux.p8.eq(clkdiv_test[-4]),
-        pmod_aux.p9.eq(clkdiv_test[-5]),
-        pmod_aux.p10.eq(clkdiv_test[-6]),
-        pmod_aux.p11.eq(clkdiv_test[-7]),
-        pmod_aux.p12.eq(clkdiv_test[-8]),
-    ]
-    """
-
-    """
-    clkdiv_test = Signal(8)
-    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
-    ulpi = soc.platform.request("ulpi")
-    soc.comb += [
-        ulpi.data[0].eq(clkdiv_test[0]),
-        ulpi.data[1].eq(clkdiv_test[1]),
-        ulpi.data[2].eq(clkdiv_test[2]),
-        ulpi.data[3].eq(clkdiv_test[3]),
-        ulpi.data[4].eq(clkdiv_test[4]),
-        ulpi.data[5].eq(clkdiv_test[5]),
-        ulpi.data[6].eq(clkdiv_test[6]),
-        ulpi.data[7].eq(clkdiv_test[7]),
-    ]
-    """
-
-    """
-    clkdiv_test = Signal(8)
-    soc.sync.clk_fs += clkdiv_test.eq(clkdiv_test+1)
-    ulpi = soc.platform.request("ulpi")
-    soc.comb += [
-        ulpi.dir.eq(clkdiv_test[0]),
-        ulpi.nxt.eq(clkdiv_test[1]),
-        ulpi.stp.eq(clkdiv_test[2]),
-        ulpi.rst.eq(clkdiv_test[3]),
-    ]
-    """
 
     builder = Builder(soc, **parser.builder_argdict)
     if args.build:
