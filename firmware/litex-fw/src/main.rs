@@ -17,6 +17,8 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
+use tinyusb_sys::tusb_init;
+
 use ssd1322 as oled;
 
 use polyvec_lib::voice::*;
@@ -331,6 +333,10 @@ fn main() -> ! {
     let oscope = Mutex::new(RefCell::new(OScope::new()));
 
     let mut trace_main = Trace::new();
+
+    unsafe {
+        tusb_init();
+    }
 
     handler!(dma_router0 = || dma_router0_handler(&dma_router, &oscope));
     handler!(timer0 = || timer0_handler(&state, &opts));

@@ -34,6 +34,7 @@ litex-interrupt = { path = "../deps/litex-interrupt" }
 critical-section = "1.1.2"
 strum_macros = "0.25.3"
 strum = {version = "0.25.0", features = ["derive"], default-features=false}
+tinyusb-sys = { path = "../deps/tinyusb-sys-rs"}
 
 [dev-dependencies]
 critical-section = { version = "1.1.2", features = ["std"] }
