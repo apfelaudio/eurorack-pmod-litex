@@ -17,7 +17,7 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
-use tinyusb_sys::tusb_init;
+use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task};
 
 use ssd1322 as oled;
 
@@ -304,6 +304,21 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
     disp
 }
 
+#[no_mangle]
+pub extern "C" fn tud_dfu_get_timeout_cb(alt: u8, state: u8) -> u32 {
+    // TODO
+    0u32
+}
+
+#[no_mangle]
+pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
+    // TODO
+}
+
+#[no_mangle]
+pub extern "C" fn tud_dfu_manifest_cb(alt: u8)  {
+    // TODO
+}
 
 #[entry]
 fn main() -> ! {
@@ -336,6 +351,8 @@ fn main() -> ! {
 
     unsafe {
         tusb_init();
+        dcd_int_handler(0);
+        tud_task();
     }
 
     handler!(dma_router0 = || dma_router0_handler(&dma_router, &oscope));
