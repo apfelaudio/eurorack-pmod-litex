@@ -161,17 +161,19 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
         let opts = &mut opts.borrow_ref_mut(cs);
         state.trace.start(&timer);
         state.tick(opts, uptime_ms);
-        /*
         unsafe {
+            log::info!("T");
             tud_task();
         }
-        */
         state.trace.end(&timer);
     });
 }
 
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
+
+    log::info!("I");
+
     let pending_irq = vexriscv::register::vmip::read();
     let peripherals = pac::Peripherals::steal();
 
@@ -189,7 +191,6 @@ unsafe fn irq_handler() {
         fence();
     }
 
-    /*
     // TODO: grab these correctly from PAC!
     // These are already in the SVD as constants, but not as
     // sub-nodes of the peripheral parents, so they aren't
@@ -204,9 +205,9 @@ unsafe fn irq_handler() {
        (pending_irq & (1 <<  irq_usb_setup)) != 0 ||
        (pending_irq & (1 <<  irq_usb_in_ep)) != 0 ||
        (pending_irq & (1 << irq_usb_out_ep)) != 0 {
+        log::info!("U");
         dcd_int_handler(0);
     }
-    */
 }
 
 struct State {
@@ -347,7 +348,7 @@ pub extern "C" fn tud_dfu_manifest_cb(alt: u8)  {
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
 
-    log::init(peripherals.UART);
+    log::init(peripherals.UART_MIDI);
     log::info!("hello from litex-fw!");
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
@@ -361,7 +362,7 @@ fn main() -> ! {
         DmaRouter::new(peripherals.DMA_ROUTER0,
                        unsafe { BUF_IN.as_mut_ptr() as u32 },
                        BUF_SZ_WORDS as u32));
-    let uart_midi = UartMidi::new(peripherals.UART_MIDI);
+    let uart_midi = UartMidi::new(peripherals.UART);
     let midi_in =  MidiIn::new(uart_midi);
     let breathe = LedBreathe::new(peripherals.PCA9635);
     let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
@@ -384,16 +385,23 @@ fn main() -> ! {
 
         unsafe {
 
+            log::info!("before vmim\n\n");
+
+            // Note: USB interrupts are enabled later by dcd_eptri.c initialization (tusb_init)
             vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
                                             (1 << (pac::Interrupt::TIMER0 as usize)));
 
-            /*
+            log::info!("before tusb_init\n\n");
+
             // Also enables USB interrupts
             tusb_init();
-            */
+
+            log::info!("before mext\n\n");
 
             // Enable machine external interrupts (basically everything added on by LiteX).
             riscv::register::mie::set_mext();
+
+            log::info!("before intie\n\n");
 
             // WARN: Don't do this before IRQs are registered for this scope,
             // otherwise you'll hang forever :)
@@ -402,6 +410,8 @@ fn main() -> ! {
         }
 
         loop {
+
+            log::info!("main\n\n");
 
             trace_main.start(&timer);
 

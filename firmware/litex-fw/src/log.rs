@@ -7,7 +7,7 @@ use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 
 litex_hal::uart! {
-    Uart: pac::UART,
+    Uart: pac::UART_MIDI,
 }
 
 static mut UART_WRITER: Option<Uart> = None;
@@ -27,8 +27,27 @@ fn panic(panic_info: &PanicInfo) -> ! {
 }
 
 #[export_name = "ExceptionHandler"]
-fn exception_handler(_trap_frame: &riscv_rt::TrapFrame) -> ! {
+fn exception_handler(trap_frame: &riscv_rt::TrapFrame) -> ! {
     _logger_write(b"exception_handler\n");
+    info!("mcause: {:#x}", riscv::register::mcause::read().bits());
+    info!("mtval: {:#x}", riscv::register::mtval::read());
+    info!("mepc: {:#x}", riscv::register::mepc::read());
+    info!("ra: {:#x}", trap_frame.ra);
+    info!("t0: {:#x}", trap_frame.t0);
+    info!("t1: {:#x}", trap_frame.t1);
+    info!("t2: {:#x}", trap_frame.t2);
+    info!("t3: {:#x}", trap_frame.t3);
+    info!("t4: {:#x}", trap_frame.t4);
+    info!("t5: {:#x}", trap_frame.t5);
+    info!("t6: {:#x}", trap_frame.t6);
+    info!("a0: {:#x}", trap_frame.a0);
+    info!("a1: {:#x}", trap_frame.a1);
+    info!("a2: {:#x}", trap_frame.a2);
+    info!("a3: {:#x}", trap_frame.a3);
+    info!("a4: {:#x}", trap_frame.a4);
+    info!("a5: {:#x}", trap_frame.a5);
+    info!("a6: {:#x}", trap_frame.a6);
+    info!("a7: {:#x}", trap_frame.a7);
     loop {}
 }
 
@@ -40,7 +59,7 @@ pub fn _logger_write(bytes: &[u8]) {
     }
 }
 
-pub fn init(uart: pac::UART) {
+pub fn init(uart: pac::UART_MIDI) {
     unsafe {
         UART_WRITER = Some(Uart::new(uart));
         if let Some(writer) = &mut UART_WRITER {

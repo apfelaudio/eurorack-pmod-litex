@@ -160,7 +160,7 @@ karlsen_lpf!(pac::KARLSEN_LPF3);
 pwm_led!(pac::PCA9635);
 
 litex_hal::uart! {
-    UartMidi: litex_pac::UART_MIDI,
+    UartMidi: litex_pac::UART,
 }
 
 litex_hal::timer! {
