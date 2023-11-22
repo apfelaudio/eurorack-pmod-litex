@@ -17,7 +17,7 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
-use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task};
+use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext};
 
 use ssd1322 as oled;
 
@@ -161,10 +161,6 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
         let opts = &mut opts.borrow_ref_mut(cs);
         state.trace.start(&timer);
         state.tick(opts, uptime_ms);
-        unsafe {
-            log::info!("T");
-            tud_task();
-        }
         state.trace.end(&timer);
     });
 }
@@ -184,12 +180,16 @@ unsafe fn irq_handler() {
         fence();
     }
 
+    let pending_irq = vexriscv::register::vmip::read();
+
     if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
         let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
         TIMER0();
         peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
         fence();
     }
+
+    let pending_irq = vexriscv::register::vmip::read();
 
     // TODO: grab these correctly from PAC!
     // These are already in the SVD as constants, but not as
@@ -412,6 +412,11 @@ fn main() -> ! {
         loop {
 
             log::info!("main\n\n");
+
+            unsafe {
+                log::info!("T");
+                tud_task_ext(u32::MAX, false);
+            }
 
             trace_main.start(&timer);
 
