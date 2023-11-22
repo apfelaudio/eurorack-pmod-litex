@@ -37,7 +37,7 @@ where
 
     // Channel title
     Text::with_alignment(
-        &title,
+        title,
         Point::new(top_left.x + (size.width as i32)/2, top_left.y + font_height),
         character_style_h,
         Alignment::Center,
@@ -63,11 +63,6 @@ where
         .stroke_width(1)
         .build();
 
-    let mut stroke_idle = PrimitiveStyleBuilder::new()
-        .stroke_color(Gray4::new(0x1))
-        .stroke_width(1)
-        .build();
-
     s.clear();
     if voice.state != VoiceState::Idle {
         let semitones = voice.note as i32 - 60i32;
@@ -78,11 +73,6 @@ where
 
         stroke_gain = PrimitiveStyleBuilder::new()
             .stroke_color(Gray4::new((15f32 * voice.amplitude) as u8))
-            .stroke_width(1)
-            .build();
-
-        stroke_idle = PrimitiveStyleBuilder::new()
-            .stroke_color(Gray4::WHITE)
             .stroke_width(1)
             .build();
     }

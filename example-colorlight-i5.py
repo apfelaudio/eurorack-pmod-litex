@@ -27,38 +27,28 @@ from rtl.spi_dma import Wishbone2SPIDMA
 from rtl.dma_router import *
 
 _io_eurolut_proto1 = [
-    ("eurorack_pmod_p6a", 0,
+    ("eurorack_pmod_aux3", 0,
         # Global clock buffer through 74HC245PW,118
         Subsignal("mclk",    Pins("J16")),
         Subsignal("bick",    Pins("L5")),
         Subsignal("lrck",    Pins("M4")),
         Subsignal("pdn",     Pins("R3")),
-        # Local signals PMOD0
-        Subsignal("i2c_sda", Pins("L4")),
-        Subsignal("i2c_scl", Pins("N4")),
-        Subsignal("sdin1",   Pins("J18")),
-        Subsignal("sdout1",  Pins("P16")),
+        # Local signals AUX3
+        Subsignal("i2c_sda", Pins("D2")),
+        Subsignal("i2c_scl", Pins("E2")),
+        Subsignal("sdin1",   Pins("A3")),
+        Subsignal("sdout1",  Pins("B1")),
         IOStandard("LVCMOS33")
     ),
-   ("ulpi", 0,
-       Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
-       Subsignal("clk",   Pins("W1")),
-       Subsignal("dir",   Pins("E16")),
-       Subsignal("nxt",   Pins("E17")),
-       Subsignal("stp",   Pins("R1")),
-       Subsignal("rst",   Pins("U1")),
-       IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
-   ),
-   # ULPI wiring on proto1 is completely borked on schematic, below is correct for proto1 :)
-   #("ulpi", 0,
-   #    Subsignal("data",  Pins("E17 R1 E16 F4 E6 D16 D17 E5")),
-   #    Subsignal("clk",   Pins("W1")),
-   #    Subsignal("dir",   Pins("F5")),
-   #    Subsignal("nxt",   Pins("D18")),
-   #    Subsignal("stp",   Pins("G5")),
-   #    Subsignal("rst",   Pins("U1")),
-   #    IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
-   #),
+    ("ulpi", 0,
+        Subsignal("data",  Pins("D18 G5 F5 E5 D17 D16 E6 F4")),
+        Subsignal("clk",   Pins("W1")),
+        Subsignal("dir",   Pins("E16")),
+        Subsignal("nxt",   Pins("E17")),
+        Subsignal("stp",   Pins("R1")),
+        Subsignal("rst",   Pins("U1")),
+        IOStandard("LVCMOS33"),Misc("SLEWRATE=FAST")
+    ),
     ("oled_spi", 0,
         Subsignal("clk",  Pins("Y2")),
         Subsignal("mosi", Pins("N2")),
@@ -85,17 +75,6 @@ _io_eurolut_proto1 = [
         Subsignal("i2c_sda", Pins("F1")),
         Subsignal("i2c_scl", Pins("F2")),
         Subsignal("oan", Pins("G3"), Misc("PULLMODE=DOWN")),
-        IOStandard("LVCMOS33")
-    ),
-    ("pmod_aux1", 0,
-        Subsignal("p5", Pins("N17")),
-        Subsignal("p6", Pins("N18")),
-        Subsignal("p7", Pins("M18")),
-        Subsignal("p8", Pins("L20")),
-        Subsignal("p9", Pins("L18")),
-        Subsignal("p10", Pins("K20")),
-        Subsignal("p11", Pins("J20")),
-        Subsignal("p12", Pins("G20")),
         IOStandard("LVCMOS33")
     ),
     # This is pin 27 of the B50612D (top ethernet PHY), which is pretty easy to
@@ -219,7 +198,6 @@ def add_encoder(soc):
     # Create logic for decoding IQ rotation
     rotary_encoder = RotaryEncoder(pads.a, pads.b)
     soc.add_module("rotary_encoder", rotary_encoder)
-    pmod_aux = soc.platform.request("pmod_aux1")
 
 def add_programn_gpio(soc):
     programp = Signal()
@@ -287,7 +265,7 @@ def main():
 
     add_audio_clocks(soc)
 
-    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_p6a", mod_name="eurorack_pmod0")
+    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_aux3", mod_name="eurorack_pmod0")
 
     add_oled(soc)
 

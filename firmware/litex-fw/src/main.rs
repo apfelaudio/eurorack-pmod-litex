@@ -161,9 +161,11 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
         let opts = &mut opts.borrow_ref_mut(cs);
         state.trace.start(&timer);
         state.tick(opts, uptime_ms);
+        /*
         unsafe {
             tud_task();
         }
+        */
         state.trace.end(&timer);
     });
 }
@@ -187,6 +189,7 @@ unsafe fn irq_handler() {
         fence();
     }
 
+    /*
     // TODO: grab these correctly from PAC!
     // These are already in the SVD as constants, but not as
     // sub-nodes of the peripheral parents, so they aren't
@@ -197,13 +200,13 @@ unsafe fn irq_handler() {
     let irq_usb_in_ep  = 4usize;
     let irq_usb_out_ep = 5usize;
 
-    if ((pending_irq & (1 << irq_usb_device)) != 0 ||
-        (pending_irq & (1 << irq_usb_setup)) != 0 ||
-        (pending_irq & (1 << irq_usb_in_ep)) != 0 ||
-        (pending_irq & (1 << irq_usb_out_ep)) != 0) {
+    if (pending_irq & (1 << irq_usb_device)) != 0 ||
+       (pending_irq & (1 <<  irq_usb_setup)) != 0 ||
+       (pending_irq & (1 <<  irq_usb_in_ep)) != 0 ||
+       (pending_irq & (1 << irq_usb_out_ep)) != 0 {
         dcd_int_handler(0);
     }
-
+    */
 }
 
 struct State {
@@ -369,14 +372,6 @@ fn main() -> ! {
 
     let mut trace_main = Trace::new();
 
-    unsafe {
-        // TODO: Issue device reset before init!
-        // strategy: build statically-linked C bindings
-        // in rs-sys crate such that we don't have to
-        // manually inject the amaranth constants.
-        tusb_init();
-    }
-
     handler!(dma_router0 = || dma_router0_handler(&dma_router, &oscope));
     handler!(timer0 = || timer0_handler(&state, &opts));
 
@@ -385,10 +380,17 @@ fn main() -> ! {
         scope.register(Interrupt::DMA_ROUTER0, dma_router0);
         scope.register(Interrupt::TIMER0, timer0);
 
+        timer.set_periodic_event(TICK_MS);
+
         unsafe {
-            // Enable interrupts from DMA router (vexriscv specific register)
+
             vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
-                                            (1 << (pac::Interrupt::TIMER0 as usize)) );
+                                            (1 << (pac::Interrupt::TIMER0 as usize)));
+
+            /*
+            // Also enables USB interrupts
+            tusb_init();
+            */
 
             // Enable machine external interrupts (basically everything added on by LiteX).
             riscv::register::mie::set_mext();
@@ -398,8 +400,6 @@ fn main() -> ! {
             // Finally enable interrupts
             riscv::interrupt::enable();
         }
-
-        timer.set_periodic_event(TICK_MS);
 
         loop {
 
