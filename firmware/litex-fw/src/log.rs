@@ -28,7 +28,7 @@ fn panic(panic_info: &PanicInfo) -> ! {
 
 #[export_name = "ExceptionHandler"]
 fn exception_handler(trap_frame: &riscv_rt::TrapFrame) -> ! {
-    _logger_write(b"exception_handler\n");
+    info!("*** exception_handler");
     info!("mcause: {:#x}", riscv::register::mcause::read().bits());
     info!("mtval: {:#x}", riscv::register::mtval::read());
     info!("mepc: {:#x}", riscv::register::mepc::read());
@@ -63,9 +63,7 @@ pub fn init(uart: pac::UART_MIDI) {
     unsafe {
         UART_WRITER = Some(Uart::new(uart));
         if let Some(writer) = &mut UART_WRITER {
-            writer
-                .bwrite_all(b"UART logger up!\n")
-                .ok();
+            info!("UART logger up!");
         }
     }
 }
@@ -78,6 +76,7 @@ macro_rules! info {
         let mut s: String<256> = String::new();
         ufmt::uwrite!(&mut s, $($arg)*).ok();
         _logger_write(&s.into_bytes());
+        _logger_write(b"\r");
         _logger_write(b"\n");
     }};
 }
