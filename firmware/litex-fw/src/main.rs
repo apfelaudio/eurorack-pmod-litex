@@ -171,25 +171,6 @@ unsafe fn irq_handler() {
     log::info!("I");
 
     let pending_irq = vexriscv::register::vmip::read();
-    let peripherals = pac::Peripherals::steal();
-
-    if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
-        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
-        DMA_ROUTER0();
-        peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
-        fence();
-    }
-
-    let pending_irq = vexriscv::register::vmip::read();
-
-    if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
-        let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
-        TIMER0();
-        peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
-        fence();
-    }
-
-    let pending_irq = vexriscv::register::vmip::read();
 
     // TODO: grab these correctly from PAC!
     // These are already in the SVD as constants, but not as
@@ -207,6 +188,21 @@ unsafe fn irq_handler() {
        (pending_irq & (1 << irq_usb_out_ep)) != 0 {
         log::info!("U");
         dcd_int_handler(0);
+    }
+
+    let peripherals = pac::Peripherals::steal();
+    if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
+        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
+        DMA_ROUTER0();
+        peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
+        fence();
+    }
+
+    if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
+        let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
+        TIMER0();
+        peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
+        fence();
     }
 }
 
@@ -344,6 +340,12 @@ pub extern "C" fn tud_dfu_manifest_cb(alt: u8)  {
     // TODO
 }
 
+const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
+
+unsafe fn usb_device_controller_reset_write(value: u32) {
+    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_RESET_ADDRESS, value);
+}
+
 #[entry]
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
@@ -351,7 +353,15 @@ fn main() -> ! {
     log::init(peripherals.UART_MIDI);
     log::info!("hello from litex-fw!");
 
+
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+
+    unsafe {
+        usb_device_controller_reset_write(1);
+        timer.delay_ms(100u32);
+        usb_device_controller_reset_write(0);
+        timer.delay_ms(100u32);
+    }
 
     peripherals.EURORACK_PMOD0.reset(&mut timer);
     peripherals.PCA9635.reset(&mut timer);
@@ -410,8 +420,6 @@ fn main() -> ! {
         }
 
         loop {
-
-            log::info!("main\n\n");
 
             unsafe {
                 log::info!("T");
