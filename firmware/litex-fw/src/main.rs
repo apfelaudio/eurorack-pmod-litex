@@ -168,8 +168,6 @@ fn timer0_handler(state: &Mutex<RefCell<State>>, opts: &Mutex<RefCell<opt::Optio
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
 
-    log::info!("I");
-
     let pending_irq = vexriscv::register::vmip::read();
 
     // TODO: grab these correctly from PAC!
@@ -186,7 +184,6 @@ unsafe fn irq_handler() {
        (pending_irq & (1 <<  irq_usb_setup)) != 0 ||
        (pending_irq & (1 <<  irq_usb_in_ep)) != 0 ||
        (pending_irq & (1 << irq_usb_out_ep)) != 0 {
-        log::info!("U");
         dcd_int_handler(0);
     }
 
@@ -340,6 +337,11 @@ pub extern "C" fn tud_dfu_manifest_cb(alt: u8)  {
     // TODO
 }
 
+#[no_mangle]
+pub extern "C" fn _putchar(c: u8)  {
+    _logger_write(&[c]);
+}
+
 const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
 
 unsafe fn usb_device_controller_reset_write(value: u32) {
@@ -422,7 +424,6 @@ fn main() -> ! {
         loop {
 
             unsafe {
-                log::info!("T");
                 tud_task_ext(u32::MAX, false);
             }
 
