@@ -18,7 +18,7 @@ use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
 use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext,
-                  tud_dfu_finish_flashing};
+                  tud_dfu_finish_flashing, dfu_state_t, dfu_status_t};
 
 use ssd1322 as oled;
 
@@ -199,6 +199,9 @@ unsafe fn irq_handler() {
     if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
         let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
         TIMER0();
+        unsafe {
+            tud_task_ext(u32::MAX, false);
+        }
         peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
         fence();
     }
@@ -323,22 +326,28 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_get_timeout_cb(alt: u8, state: u8) -> u32 {
-    // TODO
-    0u32
-}
-
-#[no_mangle]
-pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
-    // TODO
-    unsafe {
-        tud_dfu_finish_flashing(0);
+pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
+    match state {
+        state if state == dfu_state_t::DFU_DNBUSY as u8 => 10, // request poll in 10msec
+        state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
+        _ => 0
     }
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_manifest_cb(alt: u8)  {
+pub extern "C" fn tud_dfu_download_cb(_alt: u8, block_num: u16, data: *const u8, length: u16)  {
     // TODO
+    unsafe {
+        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tud_dfu_manifest_cb(_alt: u8)  {
+    // TODO
+    unsafe {
+        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
+    }
 }
 
 #[no_mangle]
@@ -401,35 +410,24 @@ fn main() -> ! {
 
         unsafe {
 
-            log::info!("before vmim\n\n");
-
             // Note: USB interrupts are enabled later by dcd_eptri.c initialization (tusb_init)
             vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
                                             (1 << (pac::Interrupt::TIMER0 as usize)));
 
-            log::info!("before tusb_init\n\n");
-
             // Also enables USB interrupts
             tusb_init();
-
-            log::info!("before mext\n\n");
 
             // Enable machine external interrupts (basically everything added on by LiteX).
             riscv::register::mie::set_mext();
 
-            log::info!("before intie\n\n");
-
             // WARN: Don't do this before IRQs are registered for this scope,
             // otherwise you'll hang forever :)
             // Finally enable interrupts
+            timer.delay_ms(100u32);
             riscv::interrupt::enable();
         }
 
         loop {
-
-            unsafe {
-                tud_task_ext(u32::MAX, false);
-            }
 
             trace_main.start(&timer);
 

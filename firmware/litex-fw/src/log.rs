@@ -62,7 +62,7 @@ pub fn _logger_write(bytes: &[u8]) {
 pub fn init(uart: pac::UART_MIDI) {
     unsafe {
         UART_WRITER = Some(Uart::new(uart));
-        if let Some(writer) = &mut UART_WRITER {
+        if let Some(_) = &mut UART_WRITER {
             info!("UART logger up!");
         }
     }
