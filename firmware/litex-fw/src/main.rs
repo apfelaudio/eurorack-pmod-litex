@@ -327,11 +327,14 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 
 #[no_mangle]
 pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
+    /*
     match state {
-        state if state == dfu_state_t::DFU_DNBUSY as u8 => 10, // request poll in 10msec
+        state if state == dfu_state_t::DFU_DNBUSY as u8 => TICK_MS,
         state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
         _ => 0
     }
+    */
+    TICK_MS
 }
 
 #[no_mangle]
