@@ -39,8 +39,11 @@ class LunaEpTriWrapper(Module):
         # Connect ULPI to platform
         ulpi_data = TSTriple(8)
         reset = Signal()
-        if hasattr(ulpi_pads, "rst"):
-            self.comb += ulpi_pads.rst.eq(~ResetSignal("usb"))
+
+        # TODO: this was previously hooked up to the PhyResetController
+        # but now connected to LUNA ulpi rst output, seems to be more stable?
+        self.comb += ulpi_pads.rst.eq(~reset)
+
         self.specials += [
             DDROutput(~reset, 0, ulpi_pads.clk, ClockSignal("usb")),
             ulpi_data.get_tristate(ulpi_pads.data)
