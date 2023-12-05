@@ -12,8 +12,7 @@ jobs:
         with:
             toolchain: nightly
             override: True
-            components: rustfmt, clippy
-            target: riscv32im-unknown-none-elf
+            components: rustfmt, clippy, rust-src
       - run: cargo install svd2rust
       - run: svd2rust --version
       - uses: gregdavill/setup-riscv-gnu-toolchain@v2
