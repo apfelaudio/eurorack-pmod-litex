@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 riscv = { version = "*", features = ["critical-section-single-hart"] }
-riscv-rt = "*"
+riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
 litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
 litex-pac = { path = "../litex-pac", features = ["rt"] }
 ssd1322 = { path = "../ssd1322", features = [] }

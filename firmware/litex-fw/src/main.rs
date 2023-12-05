@@ -338,8 +338,8 @@ pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_download_cb(_alt: u8, block_num: u16, data: *const u8, length: u16)  {
-    // TODO
+pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
+    log::info!("DOWNLOAD alt={} block_num={} len={}", alt, block_num, length);
     unsafe {
         tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
     }
@@ -423,10 +423,13 @@ fn main() -> ! {
             // Enable machine external interrupts (basically everything added on by LiteX).
             riscv::register::mie::set_mext();
 
+            // WARN: delay before interrupt enable after tusb_init(), the USB core takes a while
+            // to spin up after tusb_init() if nothing is connected, apparently.
+            timer.delay_ms(100u32);
+
             // WARN: Don't do this before IRQs are registered for this scope,
             // otherwise you'll hang forever :)
             // Finally enable interrupts
-            timer.delay_ms(100u32);
             riscv::interrupt::enable();
         }
 
