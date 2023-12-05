@@ -4,6 +4,8 @@ from migen import *
 
 from litex.soc.interconnect.csr import *
 
+from litex.soc.cores.gpio import GPIOOut
+
 SOURCES_ROOT = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "../deps/eurorack-pmod/gateware"
@@ -20,6 +22,7 @@ class EurorackPmod(Module, AutoCSR):
 
         self.clk_256fs = ClockSignal("clk_256fs")
         self.clk_fs = ClockSignal("clk_fs")
+
         self.rst = ResetSignal("sys")
 
         self.cal_in0 = Signal((w, True))
@@ -112,8 +115,10 @@ class EurorackPmod(Module, AutoCSR):
             i_force_dac_output = self.force_dac_output,
         )
 
+
         if not sim:
             # FIXME: For now these tristate implementations are ECP5 specific.
+
             self.specials += Instance("TRELLIS_IO",
                 p_DIR = "BIDIR",
                 i_B   = pads.i2c_scl,
@@ -130,6 +135,7 @@ class EurorackPmod(Module, AutoCSR):
                 i_T   = ~self.i2c_sda_oe
             )
         else:
+            # No need for special IO buffers if in simulation.
             self.comb += [
                 pads.i2c_sda.eq(~self.i2c_sda_oe),
                 pads.i2c_scl.eq(~self.i2c_scl_oe),
