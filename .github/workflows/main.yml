@@ -7,6 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Use HTTPS instead of SSH repository authentication.
+        run: |
+          git config --global url.https://github.com/.insteadOf git://github.com/
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
         with:
