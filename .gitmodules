@@ -25,9 +25,6 @@
 [submodule "deps/pythondata-software-compiler_rt"]
 	path = deps/pythondata-software-compiler_rt
 	url = git@github.com:litex-hub/pythondata-software-compiler_rt.git
-[submodule "firmware/deps/embedded-midi"]
-	path = firmware/deps/embedded-midi
-	url = git@github.com:schnommus/embedded-midi
 [submodule "firmware/deps/rust-litex-hal"]
 	path = firmware/deps/rust-litex-hal
 	url = git@github.com:schnommus/rust-litex-hal

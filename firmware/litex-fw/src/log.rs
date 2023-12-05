@@ -1,5 +1,12 @@
 #![allow(clippy::empty_loop)]
 
+/// Somewhat fragile implementation of a UART logger so you can
+/// do a `log::info("format {} string {}", a, b)` elsewhere in
+/// the codebase.
+///
+/// Also (ab)uses this for some handlers for panic/trap/exceptions.
+///
+
 use core::panic::PanicInfo;
 use heapless::String;
 use litex_pac as pac;

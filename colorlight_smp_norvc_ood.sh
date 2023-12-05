@@ -1,0 +1,1 @@
+python3 example-colorlight-i5.py --ecppack-compress --cpu-type vexriscv_smp --cpu-variant standard --csr-svd build/colorlight_i5/csr.svd --build --lx-ignore-deps --timer-uptime --cpu-count 1 --with-wishbone-memory
