@@ -15,7 +15,11 @@ panic-halt = "*"
 litex-hal = { path = "../deps/rust-litex-hal" }
 litex-pac = { path = "../deps/generated-litex-pac", features = ["rt"] }
 micromath = "2.0.0"
-heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+heapless = { version = "0.7.16", default-features = false, features = ["ufmt-impl", "atomic-polyfill"] }
 ufmt = "0.2.0"
 aligned-array = "1.0.1"
 fixed = "1.24.0"
+
+[profile.release]
+lto = true
+opt-level = 3

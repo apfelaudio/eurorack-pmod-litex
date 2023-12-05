@@ -34,7 +34,7 @@ use plic::*;
 use dsp::*;
 
 /// TODO: Modify `svd2rust` so this can be automatically forwarded?
-const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
+const SYSTEM_CLOCK_FREQUENCY: u32 = 75_000_000;
 
 /// Number of channels per section (4x input, 4x output)
 const N_CHANNELS: usize = 4;

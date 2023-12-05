@@ -19,7 +19,7 @@ svd2rust --log error -i $BUILD_DIR/csr.svd --target riscv
 
 # Build the firmware .elf file
 cd $FW_ROOT/litex-fw
-cargo build --target=riscv32imac-unknown-none-elf --release
+cargo build -Zbuild-std=core --target=riscv32im-unknown-none-elf --release
 
 # Copy it into a binary that litex_term can upload.
-${OBJCOPY} target/riscv32imac-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
+${OBJCOPY} target/riscv32im-unknown-none-elf/release/litex-fw -O binary $BUILD_DIR/rust-fw.bin
