@@ -1,15 +1,15 @@
 **WARN:** if you're just getting started with `eurorack-pmod` please [start here instead](https://github.com/apfelaudio/eurorack-pmod), this repository is a template for more advanced projects :)
 
-# `Real-time Audio DSP (in Rust, on a RISC-V softcore, on an FPGA).
+# Real-time Audio DSP (in Rust, on a RISC-V softcore, on an FPGA).
 
-## Using `eurorack-pmod` with LiteX.
+## Example of using [eurorack-pmod](https://github.com/apfelaudio/eurorack-pmod) with LiteX.
 
-This repository is an example of using `eurorack-pmod` inside a LiteX environment with firmware written in Rust.
+TODO: add nice block diagram here
 
-The `example-ecpix-5.py` SoC has the following main parts:
+The `example-ecpix-5.py` SoC in this repository has the following main parts:
 - A softcore (RISCV `vexriscv_smp`, here we use `rv32im` without compressed instructions).
-- An instance of `eurorack-pmod` gateware where inputs/outputs can be peeked or poked through CSRs.
 - A custom `dma_router` DMA engine which can shuttle data between RAM and the eurorack-pmod in real-time for glitch-free audio processing on the softcore (i.e in firmware).
+- An instance of `eurorack-pmod` gateware where inputs/outputs can be peeked or poked through CSRs.
 
 This example targets ECPIX-5, however given how little platform-specific code is in the SoC implementation, you should be able to easily port this to other FPGA boards.
 

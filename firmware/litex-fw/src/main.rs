@@ -124,8 +124,8 @@ unsafe fn irq_handler() {
     let peripherals = pac::Peripherals::steal();
 
     // Keep track of how long we spend in IRQs
-    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-    let trace = peripherals.TIMER0.uptime_cycles0.read().bits();
+    peripherals.TIMER0.uptime_latch().write(|w| w.bits(1));
+    let trace = peripherals.TIMER0.uptime_cycles0().read().bits();
     LAST_IRQ_PERIOD = trace - LAST_IRQ;
     LAST_IRQ = trace;
 
@@ -135,8 +135,8 @@ unsafe fn irq_handler() {
             // Read the current position in the circular DMA buffer to determine whether
             // we need to service the first or last half of the DMA buffer.
 
-            let offset = peripherals.DMA_ROUTER0.offset_words.read().bits();
-            let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
+            let offset = peripherals.DMA_ROUTER0.offset_words().read().bits();
+            let pending_subtype = peripherals.DMA_ROUTER0.ev_pending().read().bits();
 
             if let Some(ref mut dsp) = KARLSEN_LPF {
                 if offset as usize == ((BUF_SZ_WORDS/2)+1) {
@@ -154,7 +154,7 @@ unsafe fn irq_handler() {
                 }
             }
 
-            peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
+            peripherals.DMA_ROUTER0.ev_pending().write(|w| w.bits(pending_subtype));
 
             fence();
         },
@@ -166,8 +166,8 @@ unsafe fn irq_handler() {
 
     PLIC0::complete(pending_irq);
 
-    peripherals.TIMER0.uptime_latch.write(|w| w.bits(1));
-    let trace_end = peripherals.TIMER0.uptime_cycles0.read().bits();
+    peripherals.TIMER0.uptime_latch().write(|w| w.bits(1));
+    let trace_end = peripherals.TIMER0.uptime_cycles0().read().bits();
     LAST_IRQ_LEN = trace_end - trace;
 }
 
@@ -189,11 +189,11 @@ fn main() -> ! {
         KARLSEN_LPF = Some(KarlsenLpf::new());
 
         // Configure the DMA engine such that it uses our static buffers, and start it.
-        peripherals.DMA_ROUTER0.base_writer.write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
-        peripherals.DMA_ROUTER0.base_reader.write(|w| w.bits(BUF_OUT.as_ptr() as u32));
-        peripherals.DMA_ROUTER0.length_words.write(|w| w.bits(BUF_SZ_WORDS as u32));
-        peripherals.DMA_ROUTER0.enable.write(|w| w.bits(1u32));
-        peripherals.DMA_ROUTER0.ev_enable.write(|w| w.half().bit(true));
+        peripherals.DMA_ROUTER0.base_writer().write(|w| w.bits(BUF_IN.as_mut_ptr() as u32));
+        peripherals.DMA_ROUTER0.base_reader().write(|w| w.bits(BUF_OUT.as_ptr() as u32));
+        peripherals.DMA_ROUTER0.length_words().write(|w| w.bits(BUF_SZ_WORDS as u32));
+        peripherals.DMA_ROUTER0.enable().write(|w| w.bits(1u32));
+        peripherals.DMA_ROUTER0.ev_enable().write(|w| w.half().bit(true));
 
         // RISC-V PLIC configuration.
         let mut plic = PLIC0::new();
