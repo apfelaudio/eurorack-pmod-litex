@@ -7,9 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Use HTTPS instead of SSH repository authentication.
-        run: |
-          git config --global url.https://github.com/.insteadOf git://github.com/
+      - run: git submodule update --init --recursive
       - uses: YosysHQ/setup-oss-cad-suite@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -27,7 +25,6 @@ jobs:
           python3 -m pip install wheel
           python3 -m pip install construct
           python3 -m pip install Sphinx sphinxcontrib-wavedrom meson ninja setuptools_scm Jinja2
-      - run: git submodule update --init --recursive
       - run: mkdir -p build
       - run: python3 example-ecpix-5.py --ecppack-compress --cpu-type vexriscv_smp --cpu-variant standard --csr-svd build/lambdaconcept_ecpix5/csr.svd --lx-ignore-deps --timer-uptime --cpu-count 1 --with-wishbone-memory --build
       - uses: actions/upload-artifact@v3
