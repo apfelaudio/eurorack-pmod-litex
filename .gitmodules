@@ -1,51 +1,51 @@
 [submodule "deps/eurorack-pmod"]
 	path = deps/eurorack-pmod
-	url = https://github.com/apfelaudio/eurorack-pmod
+	url = git@github.com:apfelaudio/eurorack-pmod
 [submodule "deps/migen"]
 	path = deps/migen
-	url = https://github.com/m-labs/migen.git
+	url = git@github.com:m-labs/migen.git
 [submodule "deps/litex"]
 	path = deps/litex
 	url = git@github.com:schnommus/litex.git
 [submodule "deps/litedram"]
 	path = deps/litedram
-	url = https://github.com/enjoy-digital/litedram.git
+	url = git@github.com:enjoy-digital/litedram.git
 [submodule "deps/litex_boards"]
 	path = deps/litex_boards
-	url = https://github.com/litex-hub/litex-boards.git
+	url = git@github.com:litex-hub/litex-boards.git
 [submodule "deps/litespi"]
 	path = deps/litespi
-	url = https://github.com/litex-hub/litespi
+	url = git@github.com:litex-hub/litespi
 [submodule "deps/pythondata-cpu-vexriscv"]
 	path = deps/pythondata-cpu-vexriscv
-	url = https://github.com/litex-hub/pythondata-cpu-vexriscv.git
+	url = git@github.com:litex-hub/pythondata-cpu-vexriscv.git
 [submodule "deps/pythondata-software-picolibc"]
 	path = deps/pythondata-software-picolibc
-	url = https://github.com/litex-hub/pythondata-software-picolibc.git
+	url = git@github.com:litex-hub/pythondata-software-picolibc.git
 [submodule "deps/pythondata-software-compiler_rt"]
 	path = deps/pythondata-software-compiler_rt
-	url = https://github.com/litex-hub/pythondata-software-compiler_rt.git
+	url = git@github.com:litex-hub/pythondata-software-compiler_rt.git
 [submodule "firmware/deps/embedded-midi"]
 	path = firmware/deps/embedded-midi
-	url = https://github.com/schnommus/embedded-midi
+	url = git@github.com:schnommus/embedded-midi
 [submodule "firmware/deps/rust-litex-hal"]
 	path = firmware/deps/rust-litex-hal
-	url = https://github.com/schnommus/rust-litex-hal
+	url = git@github.com:schnommus/rust-litex-hal
 [submodule "deps/liteeth"]
 	path = deps/liteeth
-	url = https://github.com/enjoy-digital/liteeth
+	url = git@github.com:enjoy-digital/liteeth
 [submodule "deps/liteiclink"]
 	path = deps/liteiclink
-	url = https://github.com/enjoy-digital/liteiclink
+	url = git@github.com:enjoy-digital/liteiclink
 [submodule "deps/litescope"]
 	path = deps/litescope
-	url = https://github.com/enjoy-digital/litescope
+	url = git@github.com:enjoy-digital/litescope
 [submodule "deps/pythondata-misc-tapcf"]
 	path = deps/pythondata-misc-tapcf
-	url = https://github.com/litex-hub/pythondata-misc-tapcfg.git
+	url = git@github.com:litex-hub/pythondata-misc-tapcfg.git
 [submodule "deps/pythondata-cpu-naxriscv"]
 	path = deps/pythondata-cpu-naxriscv
-	url = https://github.com/litex-hub/pythondata-cpu-naxriscv.git
+	url = git@github.com:litex-hub/pythondata-cpu-naxriscv.git
 [submodule "deps/pythondata-cpu-vexriscv_smp"]
 	path = deps/pythondata-cpu-vexriscv_smp
-	url = https://github.com/litex-hub/pythondata-cpu-vexriscv_smp.git
+	url = git@github.com:litex-hub/pythondata-cpu-vexriscv_smp.git
