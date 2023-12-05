@@ -36,7 +36,7 @@ _io_eurorack_pmod = [
     ),
 ]
 
-def add_eurorack_pmod(soc, sample_rate=48000, output_capable=True):
+def add_eurorack_pmod(soc, sample_rate=48000, dma_output_capable=True):
     soc.platform.add_extension(_io_eurorack_pmod)
 
     # Create 256*Fs clock domain
@@ -55,7 +55,7 @@ def add_eurorack_pmod(soc, sample_rate=48000, output_capable=True):
     soc.add_module("eurorack_pmod0", eurorack_pmod)
 
     # Now instantiate the DMA router and connect it to the EurorackPmod.
-    add_dma_router(soc, eurorack_pmod, output_capable=output_capable)
+    add_dma_router(soc, eurorack_pmod, output_capable=dma_output_capable)
 
 def main():
     from litex.build.parser import LiteXArgumentParser
