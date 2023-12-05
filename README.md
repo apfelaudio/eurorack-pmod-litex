@@ -1,8 +1,10 @@
 **WARN:** if you're just getting started with `eurorack-pmod` please [start here instead](https://github.com/apfelaudio/eurorack-pmod), this repository is a template for more advanced projects :)
 
-# `eurorack-pmod` LiteX examples
+# `Real-time Audio DSP (in Rust, on a RISC-V softcore, on an FPGA).
 
-Example of using `eurorack-pmod` inside a LiteX environment with firmware written in Rust.
+## Using `eurorack-pmod` with LiteX.
+
+This repository is an example of using `eurorack-pmod` inside a LiteX environment with firmware written in Rust.
 
 The `example-ecpix-5.py` SoC has the following main parts:
 - A softcore (RISCV `vexriscv_smp`, here we use `rv32im` without compressed instructions).
@@ -66,6 +68,7 @@ To see the LiteX terminal and download firmware to the device --
 ```
 <from repo root>
 ./bin/litex_term --kernel build/lambdaconcept_ecpix5/rust-fw.bin /dev/ttyACM0
+```
 
 
 You should see something like this:
