@@ -190,19 +190,16 @@ unsafe fn irq_handler() {
 
     let peripherals = pac::Peripherals::steal();
     if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
-        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending.read().bits();
+        let pending_subtype = peripherals.DMA_ROUTER0.ev_pending().read().bits();
         DMA_ROUTER0();
-        peripherals.DMA_ROUTER0.ev_pending.write(|w| w.bits(pending_subtype));
+        peripherals.DMA_ROUTER0.ev_pending().write(|w| w.bits(pending_subtype));
         fence();
     }
 
     if (pending_irq & (1 << pac::Interrupt::TIMER0 as usize)) != 0 {
-        let pending_subtype = peripherals.TIMER0.ev_pending.read().bits();
+        let pending_subtype = peripherals.TIMER0.ev_pending().read().bits();
         TIMER0();
-        unsafe {
-            tud_task_ext(u32::MAX, false);
-        }
-        peripherals.TIMER0.ev_pending.write(|w| w.bits(pending_subtype));
+        peripherals.TIMER0.ev_pending().write(|w| w.bits(pending_subtype));
         fence();
     }
 }
@@ -212,25 +209,21 @@ struct State {
     midi_in: MidiIn<UartMidi>,
     voice_manager: VoiceManager,
     encoder: Encoder,
-    breathe: LedBreathe,
 }
 
 impl State {
-    fn new(midi_in: MidiIn<UartMidi>, encoder: Encoder, breathe: LedBreathe) -> Self {
+    fn new(midi_in: MidiIn<UartMidi>, encoder: Encoder) -> Self {
         State {
             trace: Trace::new(),
             midi_in,
             voice_manager: VoiceManager::new(),
             encoder,
-            breathe,
         }
     }
 
     fn tick(&mut self, opts: &mut opt::Options, uptime_ms: u32) {
 
         let peripherals = unsafe { pac::Peripherals::steal() };
-
-        self.breathe.tick();
 
         self.encoder.update_ticks(TICK_MS);
 
@@ -327,14 +320,11 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 
 #[no_mangle]
 pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
-    /*
     match state {
         state if state == dfu_state_t::DFU_DNBUSY as u8 => TICK_MS,
         state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
         _ => 0
     }
-    */
-    TICK_MS
 }
 
 #[no_mangle]
@@ -382,7 +372,6 @@ fn main() -> ! {
     }
 
     peripherals.EURORACK_PMOD0.reset(&mut timer);
-    peripherals.PCA9635.reset(&mut timer);
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
@@ -392,11 +381,10 @@ fn main() -> ! {
                        BUF_SZ_WORDS as u32));
     let uart_midi = UartMidi::new(peripherals.UART);
     let midi_in =  MidiIn::new(uart_midi);
-    let breathe = LedBreathe::new(peripherals.PCA9635);
     let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 
     let opts = Mutex::new(RefCell::new(opt::Options::new()));
-    let state = Mutex::new(RefCell::new(State::new(midi_in, encoder, breathe)));
+    let state = Mutex::new(RefCell::new(State::new(midi_in, encoder)));
     let oscope = Mutex::new(RefCell::new(OScope::new()));
 
     let mut trace_main = Trace::new();
@@ -436,6 +424,10 @@ fn main() -> ! {
         loop {
 
             trace_main.start(&timer);
+
+            unsafe {
+                tud_task_ext(u32::MAX, false);
+            }
 
             let scope_samples = critical_section::with(|cs| {
                 let scope = &mut oscope.borrow_ref_mut(cs);
