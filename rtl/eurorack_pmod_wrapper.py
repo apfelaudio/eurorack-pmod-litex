@@ -39,6 +39,16 @@ class EurorackPmod(Module, AutoCSR):
         self.eeprom_serial = Signal(32)
         self.jack = Signal(8)
 
+        # Touchsense inputs (R3.3+)
+        self.touch0 = Signal(8)
+        self.touch1 = Signal(8)
+        self.touch2 = Signal(8)
+        self.touch3 = Signal(8)
+        self.touch4 = Signal(8)
+        self.touch5 = Signal(8)
+        self.touch6 = Signal(8)
+        self.touch7 = Signal(8)
+
         # Exposed (for debugging)
 
         self.sample_adc0 = Signal((w, True))
@@ -106,6 +116,14 @@ class EurorackPmod(Module, AutoCSR):
             o_eeprom_dev = self.eeprom_dev,
             o_eeprom_serial = self.eeprom_serial,
             o_jack = self.jack,
+            o_touch0 = self.touch0,
+            o_touch1 = self.touch1,
+            o_touch2 = self.touch2,
+            o_touch3 = self.touch3,
+            o_touch4 = self.touch4,
+            o_touch5 = self.touch5,
+            o_touch6 = self.touch6,
+            o_touch7 = self.touch7,
 
             # Debug ports
             o_sample_adc0 = self.sample_adc0,
@@ -159,6 +177,15 @@ class EurorackPmod(Module, AutoCSR):
         self.csr_eeprom_serial = CSRStatus(32)
         self.csr_jack = CSRStatus(8)
 
+        self.csr_touch0 = CSRStatus(8)
+        self.csr_touch1 = CSRStatus(8)
+        self.csr_touch2 = CSRStatus(8)
+        self.csr_touch3 = CSRStatus(8)
+        self.csr_touch4 = CSRStatus(8)
+        self.csr_touch5 = CSRStatus(8)
+        self.csr_touch6 = CSRStatus(8)
+        self.csr_touch7 = CSRStatus(8)
+
         # Connect CSRs directly to inputs and outputs
 
         self.comb += [
@@ -170,7 +197,16 @@ class EurorackPmod(Module, AutoCSR):
                 self.csr_eeprom_mfg.status.eq(self.eeprom_mfg),
                 self.csr_eeprom_dev.status.eq(self.eeprom_dev),
                 self.csr_eeprom_serial.status.eq(self.eeprom_serial),
-                self.csr_jack.status.eq(self.jack)
+                self.csr_jack.status.eq(self.jack),
+
+                self.csr_touch0.status.eq(self.touch0),
+                self.csr_touch1.status.eq(self.touch1),
+                self.csr_touch2.status.eq(self.touch2),
+                self.csr_touch3.status.eq(self.touch3),
+                self.csr_touch4.status.eq(self.touch4),
+                self.csr_touch5.status.eq(self.touch5),
+                self.csr_touch6.status.eq(self.touch6),
+                self.csr_touch7.status.eq(self.touch7),
         ]
 
         if output_csr_read_only:

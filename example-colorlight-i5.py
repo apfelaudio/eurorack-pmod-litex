@@ -22,7 +22,6 @@ from usbrtl.eptri import LunaEpTriWrapper
 
 from rtl.eurorack_pmod_wrapper import *
 from rtl.dsp_wrapper import *
-from rtl.pca9635_master import *
 from rtl.spi_dma import Wishbone2SPIDMA
 from rtl.dma_router import *
 
@@ -69,12 +68,6 @@ _io_eurolut_proto1 = [
         Subsignal("a", Pins("K4"), Misc("PULLMODE=NONE")),
         Subsignal("b", Pins("B2"), Misc("PULLMODE=NONE")),
         Subsignal("sw_n", Pins("E19"), Misc("PULLMODE=NONE")),
-        IOStandard("LVCMOS33")
-    ),
-    ("pca9635", 0,
-        Subsignal("i2c_sda", Pins("F1")),
-        Subsignal("i2c_scl", Pins("F2")),
-        Subsignal("oan", Pins("G3"), Misc("PULLMODE=DOWN")),
         IOStandard("LVCMOS33")
     ),
     # This is pin 27 of the B50612D (top ethernet PHY), which is pretty easy to
@@ -144,10 +137,6 @@ def add_oled(soc):
     # SPI DMA for framebuffer dumping
     soc.submodules.spi_dma = Wishbone2SPIDMA()
     soc.bus.add_master(master=soc.spi_dma.bus)
-
-def add_pca9635_master(soc):
-    pca9635_master = PCA9635Master(soc.platform, soc.platform.request("pca9635"))
-    soc.add_module("pca9635", pca9635_master)
 
 class RotaryEncoder(Module, AutoCSR):
     def __init__(self, in_i, in_q):
@@ -272,8 +261,6 @@ def main():
     add_uart_midi(soc)
 
     add_encoder(soc)
-
-    add_pca9635_master(soc)
 
     soc.add_constant("FLASH_BOOT_ADDRESS", args.flash_boot)
 
