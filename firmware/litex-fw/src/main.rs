@@ -17,8 +17,7 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
-use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext,
-                  tud_dfu_finish_flashing, dfu_state_t, dfu_status_t};
+use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext, tud_midi_n_available, tud_midi_n_packet_read};
 
 use ssd1322 as oled;
 
@@ -319,31 +318,6 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
-    match state {
-        state if state == dfu_state_t::DFU_DNBUSY as u8 => TICK_MS,
-        state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
-        _ => 0
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
-    log::info!("DOWNLOAD alt={} block_num={} len={}", alt, block_num, length);
-    unsafe {
-        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn tud_dfu_manifest_cb(_alt: u8)  {
-    // TODO
-    unsafe {
-        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn _putchar(c: u8)  {
     _logger_write(&[c]);
 }
@@ -452,6 +426,14 @@ fn main() -> ! {
             fence();
             spi_dma.block();
             spi_dma.transfer(fb.as_ptr(), fb.len());
+
+            let mut packet: [u8; 4] = [0u8; 4];
+            unsafe {
+                if tud_midi_n_available(0, 0) != 0 {
+                    tud_midi_n_packet_read(0, packet.as_mut_ptr());
+                    log::info!("MIDI: {:#x}:{:#x}:{:#x}:{:#x}", packet[0], packet[1], packet[2], packet[3]);
+                }
+            }
 
             trace_main.end(&timer);
         }
