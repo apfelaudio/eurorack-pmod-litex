@@ -17,6 +17,7 @@ class EurorackPmod(Module, AutoCSR):
         self.cal_mem_file = os.path.join(SOURCES_ROOT, "cal/cal_mem.hex")
         self.codec_cfg_file = os.path.join(SOURCES_ROOT, "drivers/ak4619-cfg.hex")
         self.led_cfg_file = os.path.join(SOURCES_ROOT, "drivers/pca9635-cfg.hex")
+        self.touch_cfg_file = os.path.join(SOURCES_ROOT, "drivers/touch-cfg.hex")
 
         # Exposed signals
 
@@ -80,6 +81,7 @@ class EurorackPmod(Module, AutoCSR):
             p_CAL_MEM_FILE = self.cal_mem_file,
             p_CODEC_CFG_FILE = self.codec_cfg_file,
             p_LED_CFG_FILE = self.led_cfg_file,
+            p_TOUCH_CFG_FILE = self.touch_cfg_file,
 
             # Ports (clk + reset)
             i_clk_256fs = self.clk_256fs,
