@@ -66,6 +66,8 @@ pub struct ScopeOptions {
     pub selected: Option<usize>,
     pub delay_len: NumOption<u32>,
     pub enum_test: EnumOption<EnumTest>,
+    pub trig_lvl: NumOption<i32>,
+    pub trig_sns: NumOption<i32>,
 }
 
 #[derive(Clone)]
@@ -102,7 +104,7 @@ impl_option_view!(AdsrOptions,
                   attack_ms, decay_ms, release_ms, resonance);
 
 impl_option_view!(ScopeOptions,
-                  delay_len, enum_test);
+                  delay_len, enum_test, trig_lvl, trig_sns);
 
 impl_option_view!(TouchOptions,
                   threshold);
@@ -165,6 +167,20 @@ impl Options {
                     step: 1,
                     min: 128,
                     max: 511,
+                },
+                trig_lvl: NumOption{
+                    name: "trig lvl".into(),
+                    value: 0,
+                    step: 100,
+                    min: -10000,
+                    max: 10000,
+                },
+                trig_sns: NumOption{
+                    name: "trig sns".into(),
+                    value: 1000,
+                    step: 100,
+                    min: 100,
+                    max: 5000,
                 },
                 enum_test: EnumOption{
                     name: "enumt".into(),

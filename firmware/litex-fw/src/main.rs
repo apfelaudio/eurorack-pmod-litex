@@ -56,6 +56,8 @@ struct OScope {
     trig_lo: bool,
     subsample: usize,
     n_subsample: usize,
+    trig_lvl_mv: i16,
+    trig_sns_mv: i16,
 }
 
 impl OScope {
@@ -66,6 +68,8 @@ impl OScope {
             trig_lo: false,
             subsample: 4,
             n_subsample: 0,
+            trig_lvl_mv: 0,
+            trig_sns_mv: 1000,
         }
     }
 
@@ -80,8 +84,11 @@ impl OScope {
                     buf_in[N_CHANNELS*i+3],
                 ];
 
-                self.trig_lo = self.trig_lo || x_in[0] < -4000;
-                let trigger = x_in[0] > 4000 && self.trig_lo;
+                let trig_lo_raw = 4*(self.trig_lvl_mv - self.trig_sns_mv);
+                let trig_hi_raw = 4*(self.trig_lvl_mv + self.trig_sns_mv);
+
+                self.trig_lo = self.trig_lo || x_in[0] < trig_lo_raw;
+                let trigger = x_in[0] > trig_hi_raw && self.trig_lo;
 
                 if  (self.n_samples > 0 && self.n_samples != SCOPE_SAMPLES) ||
                     (self.n_samples == 0 && trigger) {
@@ -388,6 +395,8 @@ fn main() -> ! {
                 let scope = &mut oscope.borrow_ref_mut(cs);
                 if scope.full() {
                     scope.reset();
+                    scope.trig_lvl_mv = opts.borrow_ref(cs).scope.trig_lvl.value as i16;
+                    scope.trig_sns_mv = opts.borrow_ref(cs).scope.trig_sns.value as i16;
                 }
                 scope.samples
             });
@@ -398,6 +407,7 @@ fn main() -> ! {
                  state.voice_manager.voices.clone(),
                  state.trace.len_us())
             });
+
 
             let touch = pmod0.touch();
 

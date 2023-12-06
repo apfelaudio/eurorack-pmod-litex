@@ -157,7 +157,7 @@ where
                 if opts.modify {
                     Text::with_alignment(
                         "-",
-                        Point::new(vx+62, (vy+10*n) as i32),
+                        Point::new(vx+62, (vy+7*n) as i32),
                         font,
                         Alignment::Left,
                     ).draw(d)?;
@@ -166,13 +166,13 @@ where
         }
         Text::with_alignment(
             opt.name(),
-            Point::new(vx+5, (vy+10*n) as i32),
+            Point::new(vx+5, (vy+7*n) as i32),
             font,
             Alignment::Left,
         ).draw(d)?;
         Text::with_alignment(
             &opt.value(),
-            Point::new(vx+60, (vy+10*n) as i32),
+            Point::new(vx+60, (vy+7*n) as i32),
             font,
             Alignment::Right,
         ).draw(d)?;
@@ -228,11 +228,45 @@ where
         ufmt::uwrite!(&mut s, "SCOPE").ok();
         draw_title_box(d, &s, Point::new(0, 0), Size::new(126, 64))?;
 
+        let yn = 3;
+
+        let stroke_grid = PrimitiveStyleBuilder::new()
+            .stroke_color(Gray4::new(1))
+            .stroke_width(1)
+            .build();
+
+        Line::new(Point::new(1, 32+yn),
+                  Point::new(124, 32+yn))
+                  .into_styled(stroke_grid)
+                  .draw(d)?;
+
+        Line::new(Point::new(64, 10),
+                  Point::new(64, 62))
+                  .into_styled(stroke_grid)
+                  .draw(d)?;
+
+        let trig_mv_px = opts.scope.trig_lvl.value >> 8;
+        let trig_sns_px = opts.scope.trig_sns.value >> 8;
+
+        Line::new(Point::new(1, 32+yn-trig_mv_px),
+                  Point::new(124, 32+yn-trig_mv_px))
+                  .into_styled(stroke_grid)
+                  .draw(d)?;
+
+        Line::new(Point::new(1, 32+yn-trig_sns_px-trig_mv_px),
+                  Point::new(4, 32+yn-trig_sns_px-trig_mv_px))
+                  .into_styled(stroke_grid)
+                  .draw(d)?;
+        Line::new(Point::new(1, 32+yn+trig_sns_px-trig_mv_px),
+                  Point::new(4, 32+yn+trig_sns_px-trig_mv_px))
+                  .into_styled(stroke_grid)
+                  .draw(d)?;
+
         let mut points: [Point; 124] = [Point::new(0, 0); 124];
         for (n, point) in points.iter_mut().enumerate() {
             if n < scope_samples.len() {
                 point.x = 1 + n as i32;
-                point.y = 33 + (scope_samples[n] >> 10) as i32;
+                point.y = 32+yn - (scope_samples[n] >> 10) as i32;
             }
         }
         Polyline::new(&points)
