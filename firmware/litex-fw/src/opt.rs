@@ -49,6 +49,7 @@ pub enum EnumTest {
 pub enum Screen {
     Adsr,
     Scope,
+    Touch,
 }
 
 #[derive(Clone)]
@@ -65,6 +66,12 @@ pub struct ScopeOptions {
     pub selected: Option<usize>,
     pub delay_len: NumOption<u32>,
     pub enum_test: EnumOption<EnumTest>,
+}
+
+#[derive(Clone)]
+pub struct TouchOptions {
+    pub selected: Option<usize>,
+    pub threshold: NumOption<u8>,
 }
 
 macro_rules! impl_option_view {
@@ -97,6 +104,9 @@ impl_option_view!(AdsrOptions,
 impl_option_view!(ScopeOptions,
                   delay_len, enum_test);
 
+impl_option_view!(TouchOptions,
+                  threshold);
+
 
 #[derive(Clone)]
 pub struct Options {
@@ -105,6 +115,7 @@ pub struct Options {
 
     pub adsr: AdsrOptions,
     pub scope: ScopeOptions,
+    pub touch: TouchOptions,
 }
 
 impl Options {
@@ -159,6 +170,16 @@ impl Options {
                     name: "enumt".into(),
                     value: EnumTest::ValueA,
                 },
+            },
+            touch: TouchOptions {
+                selected: None,
+                threshold: NumOption{
+                    name: "thresh".into(),
+                    value: 128,
+                    step: 1,
+                    min: 0,
+                    max: 255,
+                },
             }
         }
     }
@@ -200,6 +221,7 @@ impl Options {
         match self.screen.value {
             Screen::Adsr => &self.adsr,
             Screen::Scope => &self.scope,
+            Screen::Touch => &self.touch,
         }
     }
 
@@ -208,6 +230,7 @@ impl Options {
         match self.screen.value {
             Screen::Adsr => &mut self.adsr,
             Screen::Scope => &mut self.scope,
+            Screen::Touch => &mut self.touch,
         }
     }
 }

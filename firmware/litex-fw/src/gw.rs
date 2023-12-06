@@ -11,6 +11,7 @@ pub trait EurorackPmod {
     fn reset(&self, timer: &mut Timer);
     fn eeprom_serial(&self) -> u32;
     fn jack(&self) -> u8;
+    fn touch(&self) -> [u8; 8];
     fn input(&self, index: usize) -> i16;
 }
 
@@ -25,12 +26,6 @@ pub trait PitchShift {
 pub trait KarlsenLpf {
     fn set_cutoff(&self, value: i16);
     fn set_resonance(&self, value: i16);
-}
-
-pub trait PwmLed {
-    fn reset_line(&self, set_high: bool);
-    fn reset(&self, timer: &mut Timer);
-    fn led(&self, ix: usize, value: u8);
 }
 
 macro_rules! eurorack_pmod {
@@ -52,6 +47,19 @@ macro_rules! eurorack_pmod {
 
             fn jack(&self) -> u8 {
                 self.csr_jack().read().bits() as u8
+            }
+
+            fn touch(&self) -> [u8; 8] {
+                [
+                    self.csr_touch0().read().bits() as u8,
+                    self.csr_touch1().read().bits() as u8,
+                    self.csr_touch2().read().bits() as u8,
+                    self.csr_touch3().read().bits() as u8,
+                    self.csr_touch4().read().bits() as u8,
+                    self.csr_touch5().read().bits() as u8,
+                    self.csr_touch6().read().bits() as u8,
+                    self.csr_touch7().read().bits() as u8,
+                ]
             }
 
             fn input(&self, index: usize) -> i16 {

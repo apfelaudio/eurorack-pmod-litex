@@ -56,7 +56,7 @@ where
     // Channel title
     let mut s: String<16> = String::new();
     ufmt::uwrite!(&mut s, "CH {}", ix).ok();
-    draw_title_box(d, &s, Point::new(sx, sy as i32), Size::new(30, 30))?;
+    draw_title_box(d, &s, Point::new(sx, sy as i32), Size::new(31, 32))?;
 
     let mut stroke_gain = PrimitiveStyleBuilder::new()
         .stroke_color(Gray4::new(0x1))
@@ -123,15 +123,15 @@ where
 
     let opts_view = opts.view().options();
 
-    let vx: i32 = 129;
-    let vy: usize = 18;
+    let vx: i32 = 128+64;
+    let vy: usize = 17;
 
     let screen_hl = match (opts.view().selected(), opts.modify) {
         (None, _) => true,
         _ => false,
     };
 
-    draw_title_box(d, &String::new(), Point::new(vx, (vy-17) as i32), Size::new(62, 62))?;
+    draw_title_box(d, &String::new(), Point::new(vx, (vy-17) as i32), Size::new(64, 64))?;
 
     Text::with_alignment(
         opts.screen.value.into(),
@@ -204,6 +204,7 @@ pub fn draw_main<D>(d: &mut D,
                 opts: opt::Options,
                 voices: [Voice; N_VOICES],
                 scope_samples: &[i16],
+                touch: &[u8],
                 irq0_len_us: u32,
                 trace_main_len_us: u32) -> Result<(), D::Error>
 where
@@ -213,13 +214,46 @@ where
     let font_small_white = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     let thin_stroke = PrimitiveStyle::with_stroke(Gray4::WHITE, 1);
 
-    for (n_voice, voice) in voices.iter().enumerate() {
-        if n_voice % 2 == 0 {
-            draw_voice(d, 1, (1+32*n_voice/2) as u32,
+    if opts.screen.value == opt::Screen::Adsr {
+
+        for (n_voice, voice) in voices.iter().enumerate() {
+            draw_voice(d, (32*n_voice) as i32, 0,
                        n_voice as u32, voice)?;
-        } else {
-            draw_voice(d, 33, (1+32*(n_voice/2)) as u32,
-                       n_voice as u32, voice)?;
+        }
+
+    }
+
+    if opts.screen.value == opt::Screen::Scope {
+        let mut s: String<16> = String::new();
+        ufmt::uwrite!(&mut s, "SCOPE").ok();
+        draw_title_box(d, &s, Point::new(0, 0), Size::new(126, 64))?;
+
+        let mut points: [Point; 124] = [Point::new(0, 0); 124];
+        for (n, point) in points.iter_mut().enumerate() {
+            if n < scope_samples.len() {
+                point.x = 1 + n as i32;
+                point.y = 33 + (scope_samples[n] >> 10) as i32;
+            }
+        }
+        Polyline::new(&points)
+            .into_styled(thin_stroke)
+            .draw(d)?;
+    }
+
+    if opts.screen.value == opt::Screen::Touch {
+        for (n_touch, touch) in touch.iter().enumerate() {
+            let mut s: String<16> = String::new();
+            ufmt::uwrite!(&mut s, "{}", n_touch).ok();
+            draw_title_box(d, &s, Point::new((16*n_touch) as i32, 0), Size::new(15, 16))?;
+
+            let stroke_gain = PrimitiveStyleBuilder::new()
+                .stroke_color(Gray4::new(((*touch as u32 * 15u32) / 256u32) as u8))
+                .stroke_width(1)
+                .build();
+
+            Rectangle::new(Point::new((16*n_touch) as i32+1, 10), Size::new(13, 5))
+                .into_styled(stroke_gain)
+                .draw(d)?;
         }
     }
 
@@ -227,29 +261,13 @@ where
 
     let mut s: String<16> = String::new();
     ufmt::uwrite!(&mut s, "STATS").ok();
-    draw_title_box(d, &s, Point::new(128+64+1, 1), Size::new(62, 62))?;
+    draw_title_box(d, &s, Point::new(128, 0), Size::new(62, 64))?;
 
     draw_ms(d, "main", trace_main_len_us,
-            Point::new(128+64+5, 17), font_small_white)?;
+            Point::new(128+5, 17), font_small_white)?;
     draw_ms(d, "irq0", irq0_len_us,
-            Point::new(128+64+5, 24), font_small_white)?;
+            Point::new(128+5, 24), font_small_white)?;
 
-    {
-        let mut s: String<16> = String::new();
-        ufmt::uwrite!(&mut s, "SCOPE").ok();
-        draw_title_box(d, &s, Point::new(65, 1), Size::new(62, 62))?;
-
-        let mut points: [Point; 60] = [Point::new(0, 0); 60];
-        for (n, point) in points.iter_mut().enumerate() {
-            if n < scope_samples.len() {
-                point.x = 66 + n as i32;
-                point.y = 32 + (scope_samples[n] >> 10) as i32;
-            }
-        }
-        Polyline::new(&points)
-            .into_styled(thin_stroke)
-            .draw(d)?;
-    }
 
     Ok(())
 }
@@ -261,6 +279,8 @@ mod tests {
     use image::{ImageBuffer, RgbImage, Rgb};
     use image::imageops::{rotate90, resize, FilterType};
     use midi_types::MidiMessage;
+
+    use crate::opt::Screen;
 
     struct FakeDisplay {
         img: RgbImage,
@@ -299,19 +319,33 @@ mod tests {
         let mut disp = FakeDisplay {
             img: ImageBuffer::new(256, 64)
         };
-        let opts = opt::Options::new();
+        let mut opts = opt::Options::new();
         let mut voice_manager = VoiceManager::new();
-        let scope_samples = [0i16; 64];
+        let scope_samples = [0i16; 128];
+        let mut touch = [0u8; 8];
+        touch[1] = 128;
+        touch[4] = 255;
 
         voice_manager.event(MidiMessage::NoteOn(0.into(), 70.into(), 64.into()), 0u32);
         voice_manager.tick(10u32, &opts);
         voice_manager.tick(50u32, &opts);
         voice_manager.tick(200u32, &opts);
 
-        draw_main(&mut disp, opts, voice_manager.voices, &scope_samples, 1, 2).unwrap();
-
+        opts.screen.value = Screen::Adsr;
+        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
         let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
+        rz.save("screen_adsr.png").unwrap();
 
-        rz.save("test.png").unwrap();
+        opts.screen.value = Screen::Scope;
+        disp.img = ImageBuffer::new(256, 64);
+        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
+        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
+        rz.save("screen_scope.png").unwrap();
+
+        opts.screen.value = Screen::Touch;
+        disp.img = ImageBuffer::new(256, 64);
+        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
+        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
+        rz.save("screen_touch.png").unwrap();
     }
 }

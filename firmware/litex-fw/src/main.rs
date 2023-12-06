@@ -17,9 +17,6 @@ use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 
-use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext,
-                  tud_dfu_finish_flashing, dfu_state_t, dfu_status_t};
-
 use ssd1322 as oled;
 
 use polyvec_lib::voice::*;
@@ -171,23 +168,6 @@ unsafe fn irq_handler() {
 
     let pending_irq = vexriscv::register::vmip::read();
 
-    // TODO: grab these correctly from PAC!
-    // These are already in the SVD as constants, but not as
-    // sub-nodes of the peripheral parents, so they aren't
-    // rendered in the svd2rust bindings.
-    //
-    let irq_usb_device = 2usize;
-    let irq_usb_setup  = 3usize;
-    let irq_usb_in_ep  = 4usize;
-    let irq_usb_out_ep = 5usize;
-
-    if (pending_irq & (1 << irq_usb_device)) != 0 ||
-       (pending_irq & (1 <<  irq_usb_setup)) != 0 ||
-       (pending_irq & (1 <<  irq_usb_in_ep)) != 0 ||
-       (pending_irq & (1 << irq_usb_out_ep)) != 0 {
-        dcd_int_handler(0);
-    }
-
     let peripherals = pac::Peripherals::steal();
     if (pending_irq & (1 << pac::Interrupt::DMA_ROUTER0 as usize)) != 0 {
         let pending_subtype = peripherals.DMA_ROUTER0.ev_pending().read().bits();
@@ -319,31 +299,6 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
-    match state {
-        state if state == dfu_state_t::DFU_DNBUSY as u8 => TICK_MS,
-        state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
-        _ => 0
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
-    log::info!("DOWNLOAD alt={} block_num={} len={}", alt, block_num, length);
-    unsafe {
-        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn tud_dfu_manifest_cb(_alt: u8)  {
-    // TODO
-    unsafe {
-        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn _putchar(c: u8)  {
     _logger_write(&[c]);
 }
@@ -371,7 +326,8 @@ fn main() -> ! {
         timer.delay_ms(100u32);
     }
 
-    peripherals.EURORACK_PMOD0.reset(&mut timer);
+    let pmod0 = peripherals.EURORACK_PMOD0;
+    pmod0.reset(&mut timer);
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
@@ -405,9 +361,6 @@ fn main() -> ! {
             vexriscv::register::vmim::write((1 << (pac::Interrupt::DMA_ROUTER0 as usize)) |
                                             (1 << (pac::Interrupt::TIMER0 as usize)));
 
-            // Also enables USB interrupts
-            tusb_init();
-
             // Enable machine external interrupts (basically everything added on by LiteX).
             riscv::register::mie::set_mext();
 
@@ -425,10 +378,6 @@ fn main() -> ! {
 
             trace_main.start(&timer);
 
-            unsafe {
-                tud_task_ext(u32::MAX, false);
-            }
-
             let scope_samples = critical_section::with(|cs| {
                 let scope = &mut oscope.borrow_ref_mut(cs);
                 if scope.full() {
@@ -445,7 +394,9 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-            draw::draw_main(&mut disp, opts, voices, &scope_samples,
+            let touch = pmod0.touch();
+
+            draw::draw_main(&mut disp, opts, voices, &scope_samples, &touch,
                             irq0_len_us, trace_main.len_us()).ok();
 
             let fb = disp.swap_clear();
