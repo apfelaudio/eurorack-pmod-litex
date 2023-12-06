@@ -14,7 +14,7 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-riscv = { version = "*", features = ["critical-section-single-hart"] }
+riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
 riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
 litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
 litex-pac = { path = "../litex-pac", features = ["rt"] }

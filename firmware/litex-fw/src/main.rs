@@ -29,9 +29,9 @@ use crate::gw::*;
 use crate::log::*;
 
 const N_VOICES: usize = 4;
-const SCOPE_SAMPLES: usize = 256;
+const SCOPE_SAMPLES: usize = 128;
 const N_CHANNELS: usize = 4;
-const BUF_SZ_WORDS: usize = 512;
+const BUF_SZ_WORDS: usize = 1024;
 const BUF_SZ_SAMPLES: usize = BUF_SZ_WORDS * 2;
 const TICK_MS: u32 = 5;
 
@@ -52,39 +52,46 @@ scoped_interrupts! {
 
 struct OScope {
     samples: [i16; SCOPE_SAMPLES],
-    samples_dbl: [i16; SCOPE_SAMPLES],
     n_samples: usize,
     trig_lo: bool,
+    subsample: usize,
+    n_subsample: usize,
 }
 
 impl OScope {
     fn new() -> Self {
         OScope {
             samples: [0i16; SCOPE_SAMPLES],
-            samples_dbl: [0i16; SCOPE_SAMPLES],
             n_samples: 0,
-            trig_lo: false
+            trig_lo: false,
+            subsample: 4,
+            n_subsample: 0,
         }
     }
 
     fn feed(&mut self, buf_in: &[i16]) {
+
         for i in 0..(buf_in.len()/N_CHANNELS) {
-            let x_in: [i16; N_CHANNELS] = [
-                buf_in[N_CHANNELS*i],
-                buf_in[N_CHANNELS*i+1],
-                buf_in[N_CHANNELS*i+2],
-                buf_in[N_CHANNELS*i+3],
-            ];
+            if self.n_subsample % self.subsample == 0 {
+                let x_in: [i16; N_CHANNELS] = [
+                    buf_in[N_CHANNELS*i],
+                    buf_in[N_CHANNELS*i+1],
+                    buf_in[N_CHANNELS*i+2],
+                    buf_in[N_CHANNELS*i+3],
+                ];
 
-            self.trig_lo = self.trig_lo || x_in[0] < -4000;
-            let trigger = x_in[0] > 4000 && self.trig_lo;
+                self.trig_lo = self.trig_lo || x_in[0] < -4000;
+                let trigger = x_in[0] > 4000 && self.trig_lo;
 
-            if  (self.n_samples > 0 && self.n_samples != SCOPE_SAMPLES) ||
-                (self.n_samples == 0 && trigger) {
-                self.samples[self.n_samples] = x_in[0];
-                self.n_samples += 1
+                if  (self.n_samples > 0 && self.n_samples != SCOPE_SAMPLES) ||
+                    (self.n_samples == 0 && trigger) {
+                    self.samples[self.n_samples] = x_in[0];
+                    self.n_samples += 1
+                }
             }
+            self.n_subsample += 1;
         }
+
     }
 
     fn full(&mut self) -> bool {
@@ -92,7 +99,6 @@ impl OScope {
     }
 
     fn reset(&mut self) {
-        core::mem::swap(&mut self.samples, &mut self.samples_dbl);
         self.trig_lo = false;
         self.n_samples = 0;
     }
@@ -136,9 +142,9 @@ fn dma_router0_handler(dma_router: &Mutex<DmaRouter>, scope: &Mutex<RefCell<OSco
             let scope = &mut scope.borrow_ref_mut(cs);
             let mid = (BUF_SZ_WORDS/2)+1;
             let end = BUF_SZ_WORDS-1;
-            if mid <= offset && offset <= mid + BUF_SZ_SAMPLES/4 {
+            if mid <= offset && offset <= mid + BUF_SZ_WORDS/4 {
                 scope.feed(&BUF_IN[0..(BUF_SZ_SAMPLES/2)]);
-            } else if end == offset || offset < BUF_SZ_SAMPLES/4 {
+            } else if end == offset || offset < BUF_SZ_WORDS/4 {
                 scope.feed(&BUF_IN[(BUF_SZ_SAMPLES/2)..(BUF_SZ_SAMPLES)]);
             } else {
                 panic!("latency too high into dma_router0?");
@@ -381,10 +387,9 @@ fn main() -> ! {
             let scope_samples = critical_section::with(|cs| {
                 let scope = &mut oscope.borrow_ref_mut(cs);
                 if scope.full() {
-                    // samples_dbl can only ever update here
                     scope.reset();
                 }
-                scope.samples_dbl
+                scope.samples
             });
 
             let (opts, voices, irq0_len_us) = critical_section::with(|cs| {
