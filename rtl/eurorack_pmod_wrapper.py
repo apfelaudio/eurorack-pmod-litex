@@ -40,6 +40,18 @@ class EurorackPmod(Module, AutoCSR):
         self.eeprom_serial = Signal(32)
         self.jack = Signal(8)
 
+        # LED modes & values
+        # for led_mode, for each bit 1==auto (audio), 0==manual
+        self.led_mode = Signal(8)
+        self.led0 = Signal((8, True))
+        self.led1 = Signal((8, True))
+        self.led2 = Signal((8, True))
+        self.led3 = Signal((8, True))
+        self.led4 = Signal((8, True))
+        self.led5 = Signal((8, True))
+        self.led6 = Signal((8, True))
+        self.led7 = Signal((8, True))
+
         # Touchsense inputs (R3.3+)
         self.touch0 = Signal(8)
         self.touch1 = Signal(8)
@@ -127,6 +139,17 @@ class EurorackPmod(Module, AutoCSR):
             o_touch6 = self.touch6,
             o_touch7 = self.touch7,
 
+            # LED signals
+            i_led_mode = self.led_mode,
+            i_led0 = self.led0,
+            i_led1 = self.led1,
+            i_led2 = self.led2,
+            i_led3 = self.led3,
+            i_led4 = self.led4,
+            i_led5 = self.led5,
+            i_led6 = self.led6,
+            i_led7 = self.led7,
+
             # Debug ports
             o_sample_adc0 = self.sample_adc0,
             o_sample_adc1 = self.sample_adc1,
@@ -188,6 +211,16 @@ class EurorackPmod(Module, AutoCSR):
         self.csr_touch6 = CSRStatus(8)
         self.csr_touch7 = CSRStatus(8)
 
+        self.csr_led_mode = CSRStorage(8)
+        self.csr_led0 = CSRStorage(8)
+        self.csr_led1 = CSRStorage(8)
+        self.csr_led2 = CSRStorage(8)
+        self.csr_led3 = CSRStorage(8)
+        self.csr_led4 = CSRStorage(8)
+        self.csr_led5 = CSRStorage(8)
+        self.csr_led6 = CSRStorage(8)
+        self.csr_led7 = CSRStorage(8)
+
         # Connect CSRs directly to inputs and outputs
 
         self.comb += [
@@ -209,6 +242,16 @@ class EurorackPmod(Module, AutoCSR):
                 self.csr_touch5.status.eq(self.touch5),
                 self.csr_touch6.status.eq(self.touch6),
                 self.csr_touch7.status.eq(self.touch7),
+
+                self.led_mode.eq(self.csr_led_mode.storage),
+                self.led0.eq(self.csr_led0.storage),
+                self.led1.eq(self.csr_led1.storage),
+                self.led2.eq(self.csr_led2.storage),
+                self.led3.eq(self.csr_led3.storage),
+                self.led4.eq(self.csr_led4.storage),
+                self.led5.eq(self.csr_led5.storage),
+                self.led6.eq(self.csr_led6.storage),
+                self.led7.eq(self.csr_led7.storage),
         ]
 
         if output_csr_read_only:
