@@ -34,8 +34,21 @@ _io_eurolut_proto1 = [
         Subsignal("pdn",     Pins("R3")),
         IOStandard("LVCMOS33")
     ),
+    ("eurorack_pmod_aux0", 0,
+        Subsignal("i2c_sda", Pins("L4")),
+        Subsignal("i2c_scl", Pins("N4")),
+        Subsignal("sdin1",   Pins("J18")),
+        Subsignal("sdout1",  Pins("P16")),
+        IOStandard("LVCMOS33")
+    ),
+    ("eurorack_pmod_aux1", 0,
+        Subsignal("i2c_sda", Pins("K20")),
+        Subsignal("i2c_scl", Pins("G20")),
+        Subsignal("sdin1",   Pins("N18")),
+        Subsignal("sdout1",  Pins("L20")),
+        IOStandard("LVCMOS33")
+    ),
     ("eurorack_pmod_aux2", 0,
-        # Local signals AUX2
         Subsignal("i2c_sda", Pins("L18")),
         Subsignal("i2c_scl", Pins("J20")),
         Subsignal("sdin1",   Pins("N17")),
@@ -43,7 +56,6 @@ _io_eurolut_proto1 = [
         IOStandard("LVCMOS33")
     ),
     ("eurorack_pmod_aux3", 0,
-        # Local signals AUX3
         Subsignal("i2c_sda", Pins("D2")),
         Subsignal("i2c_scl", Pins("E2")),
         Subsignal("sdin1",   Pins("A3")),
@@ -258,17 +270,29 @@ def main():
 
     shared_pads = soc.platform.request("eurorack_pmod_clk0")
 
-    pmod0_pads = soc.platform.request("eurorack_pmod_aux3")
+    pmod0_pads = soc.platform.request("eurorack_pmod_aux2")
     pmod0 = EurorackPmod(soc.platform, pmod0_pads, drive_shared_pads=shared_pads)
     soc.add_module("eurorack_pmod0", pmod0)
 
     into_shifter(soc, pmod0)
 
-    pmod1_pads = soc.platform.request("eurorack_pmod_aux2")
+    pmod1_pads = soc.platform.request("eurorack_pmod_aux0")
     pmod1 = EurorackPmod(soc.platform, pmod1_pads, drive_shared_pads=None, external_reset=pmod0.rst)
     soc.add_module("eurorack_pmod1", pmod1)
 
     into_mirror(soc, pmod1)
+
+    pmod2_pads = soc.platform.request("eurorack_pmod_aux1")
+    pmod2 = EurorackPmod(soc.platform, pmod2_pads, drive_shared_pads=None, external_reset=pmod0.rst)
+    soc.add_module("eurorack_pmod2", pmod2)
+
+    into_mirror(soc, pmod2)
+
+    pmod3_pads = soc.platform.request("eurorack_pmod_aux3")
+    pmod3 = EurorackPmod(soc.platform, pmod3_pads, drive_shared_pads=None, external_reset=pmod0.rst)
+    soc.add_module("eurorack_pmod3", pmod3)
+
+    into_mirror(soc, pmod3)
 
     add_oled(soc)
 

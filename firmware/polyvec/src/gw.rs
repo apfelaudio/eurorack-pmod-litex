@@ -161,6 +161,8 @@ macro_rules! karlsen_lpf {
 eurorack_pmod!(pac::EURORACK_PMOD0);
 eurorack_pmod_reset!(pac::EURORACK_PMOD0);
 eurorack_pmod!(pac::EURORACK_PMOD1);
+eurorack_pmod!(pac::EURORACK_PMOD2);
+eurorack_pmod!(pac::EURORACK_PMOD3);
 pitch_shift!(pac::PITCH_SHIFT0);
 pitch_shift!(pac::PITCH_SHIFT1);
 pitch_shift!(pac::PITCH_SHIFT2);

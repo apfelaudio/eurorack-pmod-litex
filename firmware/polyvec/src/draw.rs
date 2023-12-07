@@ -275,17 +275,21 @@ where
     }
 
     if opts.screen.value == opt::Screen::Touch {
+        let n_width = 8;
         for (n_touch, touch) in touch.iter().enumerate() {
             let mut s: String<16> = String::new();
             ufmt::uwrite!(&mut s, "{}", n_touch).ok();
-            draw_title_box(d, &s, Point::new((16*n_touch) as i32, 0), Size::new(15, 16))?;
 
             let stroke_gain = PrimitiveStyleBuilder::new()
                 .stroke_color(Gray4::new(((*touch as u32 * 15u32) / 256u32) as u8))
                 .stroke_width(1)
                 .build();
 
-            Rectangle::new(Point::new((16*n_touch) as i32+1, 10), Size::new(13, 5))
+            let px = 16 * (n_touch % n_width);
+            let py = 16 * (n_touch / n_width);
+
+            draw_title_box(d, &s, Point::new(px as i32, py as i32), Size::new(15, 16))?;
+            Rectangle::new(Point::new(px as i32+1, py as i32+10), Size::new(13, 5))
                 .into_styled(stroke_gain)
                 .draw(d)?;
         }

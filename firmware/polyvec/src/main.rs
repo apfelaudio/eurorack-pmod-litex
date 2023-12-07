@@ -343,6 +343,8 @@ fn main() -> ! {
     pmod0.reset(&mut timer);
 
     let pmod1 = peripherals.EURORACK_PMOD1;
+    let pmod2 = peripherals.EURORACK_PMOD2;
+    let pmod3 = peripherals.EURORACK_PMOD3;
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
@@ -412,8 +414,16 @@ fn main() -> ! {
 
             let touch0 = pmod0.touch();
             let touch1 = pmod1.touch();
+            let touch2 = pmod2.touch();
+            let touch3 = pmod3.touch();
 
-            draw::draw_main(&mut disp, opts.clone(), voices, &scope_samples, &touch0,
+            let mut touch_concat: [u8; 8*4] = [0u8; 8*4];
+            touch_concat[0..8].copy_from_slice(&touch0);
+            touch_concat[8..16].copy_from_slice(&touch1);
+            touch_concat[16..24].copy_from_slice(&touch2);
+            touch_concat[24..32].copy_from_slice(&touch3);
+
+            draw::draw_main(&mut disp, opts.clone(), voices, &scope_samples, &touch_concat,
                             irq0_len_us, trace_main.len_us()).ok();
 
             for (n, v) in touch0.iter().enumerate() {
@@ -429,6 +439,22 @@ fn main() -> ! {
                     pmod1.led_set(n, (v >> 1) as i8);
                 } else {
                     pmod1.led_auto(n);
+                }
+            }
+
+            for (n, v) in touch2.iter().enumerate() {
+                if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
+                    pmod2.led_set(n, (v >> 1) as i8);
+                } else {
+                    pmod2.led_auto(n);
+                }
+            }
+
+            for (n, v) in touch3.iter().enumerate() {
+                if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
+                    pmod3.led_set(n, (v >> 1) as i8);
+                } else {
+                    pmod3.led_auto(n);
                 }
             }
 
