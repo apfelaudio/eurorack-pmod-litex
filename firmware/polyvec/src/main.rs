@@ -408,16 +408,23 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-
             let touch = pmod0.touch();
 
-            draw::draw_main(&mut disp, opts, voices, &scope_samples, &touch,
+            draw::draw_main(&mut disp, opts.clone(), voices, &scope_samples, &touch,
                             irq0_len_us, trace_main.len_us()).ok();
+
+            for (n, v) in touch.iter().enumerate() {
+                if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
+                    pmod0.led_set(n, (v >> 1) as i8);
+                } else {
+                    pmod0.led_auto(n);
+                }
+            }
 
             let fb = disp.swap_clear();
             fence();
-            spi_dma.block();
             spi_dma.transfer(fb.as_ptr(), fb.len());
+            spi_dma.block();
 
             trace_main.end(&timer);
         }

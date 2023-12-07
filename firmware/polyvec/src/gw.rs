@@ -12,6 +12,8 @@ pub trait EurorackPmod {
     fn eeprom_serial(&self) -> u32;
     fn jack(&self) -> u8;
     fn touch(&self) -> [u8; 8];
+    fn led_set(&self, index: usize, value: i8);
+    fn led_auto(&self, index: usize);
     fn input(&self, index: usize) -> i16;
 }
 
@@ -60,6 +62,36 @@ macro_rules! eurorack_pmod {
                     self.csr_touch6().read().bits() as u8,
                     self.csr_touch7().read().bits() as u8,
                 ]
+            }
+
+            fn led_set(&self, index: usize, value: i8)  {
+
+                match index {
+                    0 => self.csr_led0().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    1 => self.csr_led1().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    2 => self.csr_led2().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    3 => self.csr_led3().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    4 => self.csr_led4().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    5 => self.csr_led5().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    6 => self.csr_led6().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    7 => self.csr_led7().write(|w| unsafe { w.bits((value as u8) as u32) } ),
+                    _ => panic!("bad index")
+                }
+
+                let mut mode = self.csr_led_mode().read().bits();
+                mode &= !(1 << index);
+                self.csr_led_mode().write(|w| unsafe { w.bits(mode) } );
+            }
+
+            fn led_auto(&self, index: usize)  {
+
+                if index > 7 {
+                    panic!("bad index");
+                }
+
+                let mut mode = self.csr_led_mode().read().bits();
+                mode |= 1 << index;
+                self.csr_led_mode().write(|w| unsafe { w.bits(mode) } );
             }
 
             fn input(&self, index: usize) -> i16 {

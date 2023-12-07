@@ -38,10 +38,9 @@ pub struct EnumOption<T> {
 
 #[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
 #[strum(serialize_all = "kebab-case")]
-pub enum EnumTest {
-    ValueA,
-    ValueB,
-    ValueC
+pub enum TouchLedMirror {
+    MirrorOff,
+    MirrorOn,
 }
 
 #[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
@@ -65,7 +64,6 @@ pub struct AdsrOptions {
 pub struct ScopeOptions {
     pub selected: Option<usize>,
     pub delay_len: NumOption<u32>,
-    pub enum_test: EnumOption<EnumTest>,
     pub trig_lvl: NumOption<i32>,
     pub trig_sns: NumOption<i32>,
 }
@@ -74,6 +72,7 @@ pub struct ScopeOptions {
 pub struct TouchOptions {
     pub selected: Option<usize>,
     pub threshold: NumOption<u8>,
+    pub led_mirror: EnumOption<TouchLedMirror>,
 }
 
 macro_rules! impl_option_view {
@@ -104,10 +103,10 @@ impl_option_view!(AdsrOptions,
                   attack_ms, decay_ms, release_ms, resonance);
 
 impl_option_view!(ScopeOptions,
-                  delay_len, enum_test, trig_lvl, trig_sns);
+                  delay_len, trig_lvl, trig_sns);
 
 impl_option_view!(TouchOptions,
-                  threshold);
+                  led_mirror, threshold);
 
 
 #[derive(Clone)]
@@ -182,10 +181,6 @@ impl Options {
                     min: 100,
                     max: 5000,
                 },
-                enum_test: EnumOption{
-                    name: "enumt".into(),
-                    value: EnumTest::ValueA,
-                },
             },
             touch: TouchOptions {
                 selected: None,
@@ -195,6 +190,10 @@ impl Options {
                     step: 1,
                     min: 0,
                     max: 255,
+                },
+                led_mirror: EnumOption{
+                    name: "led".into(),
+                    value: TouchLedMirror::MirrorOff,
                 },
             }
         }
