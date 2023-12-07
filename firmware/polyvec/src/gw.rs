@@ -6,9 +6,12 @@ use litex_hal::uart::UartError;
 
 pub const SYSTEM_CLOCK_FREQUENCY: u32 = 60_000_000;
 
-pub trait EurorackPmod {
+pub trait EurorackPmodReset {
     fn reset_line(&self, set_high: bool);
     fn reset(&self, timer: &mut Timer);
+}
+
+pub trait EurorackPmod {
     fn eeprom_serial(&self) -> u32;
     fn jack(&self) -> u8;
     fn touch(&self) -> [u8; 8];
@@ -30,9 +33,9 @@ pub trait KarlsenLpf {
     fn set_resonance(&self, value: i16);
 }
 
-macro_rules! eurorack_pmod {
+macro_rules! eurorack_pmod_reset {
     ($($t:ty),+ $(,)?) => {
-        $(impl EurorackPmod for $t {
+        $(impl EurorackPmodReset for $t {
             fn reset_line(&self, set_high: bool) {
                 self.csr_reset().write(|w| unsafe { w.bits(set_high as u32) });
             }
@@ -42,7 +45,13 @@ macro_rules! eurorack_pmod {
                 timer.delay_ms(10u32);
                 self.reset_line(false);
             }
+        })+
+    };
+}
 
+macro_rules! eurorack_pmod {
+    ($($t:ty),+ $(,)?) => {
+        $(impl EurorackPmod for $t {
             fn eeprom_serial(&self) -> u32 {
                 self.csr_eeprom_serial().read().bits().into()
             }
@@ -150,6 +159,8 @@ macro_rules! karlsen_lpf {
 }
 
 eurorack_pmod!(pac::EURORACK_PMOD0);
+eurorack_pmod_reset!(pac::EURORACK_PMOD0);
+eurorack_pmod!(pac::EURORACK_PMOD1);
 pitch_shift!(pac::PITCH_SHIFT0);
 pitch_shift!(pac::PITCH_SHIFT1);
 pitch_shift!(pac::PITCH_SHIFT2);

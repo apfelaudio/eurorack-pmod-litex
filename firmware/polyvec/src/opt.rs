@@ -193,7 +193,7 @@ impl Options {
                 },
                 led_mirror: EnumOption{
                     name: "led".into(),
-                    value: TouchLedMirror::MirrorOff,
+                    value: TouchLedMirror::MirrorOn,
                 },
             }
         }

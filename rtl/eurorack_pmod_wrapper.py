@@ -12,7 +12,7 @@ SOURCES_ROOT = os.path.join(
         )
 
 class EurorackPmod(Module, AutoCSR):
-    def __init__(self, platform, pads, w=16, output_csr_read_only=True):
+    def __init__(self, platform, pads, w=16, output_csr_read_only=True, drive_shared_pads=None, external_reset=None):
         self.w = w
         self.cal_mem_file = os.path.join(SOURCES_ROOT, "cal/cal_mem.hex")
         self.codec_cfg_file = os.path.join(SOURCES_ROOT, "drivers/ak4619-cfg.hex")
@@ -78,6 +78,21 @@ class EurorackPmod(Module, AutoCSR):
         self.i2c_sda_oe = Signal()
         self.i2c_sda_i = Signal()
 
+        # Possibly shared signals
+        if drive_shared_pads is not None:
+            self.pdn = drive_shared_pads.pdn
+            self.lrck = drive_shared_pads.lrck
+            self.bick = drive_shared_pads.bick
+            self.mclk = drive_shared_pads.mclk
+        else:
+            # Assume these are driven by another EurorackPmod instance
+            self.pdn = Signal()
+            self.lrck = Signal()
+            self.bick = Signal()
+            self.mclk = Signal()
+            assert external_reset is not None
+            self.rst = external_reset
+
         # Verilog sources
 
         platform.add_verilog_include_path(SOURCES_ROOT)
@@ -108,12 +123,16 @@ class EurorackPmod(Module, AutoCSR):
             i_i2c_sda_i = self.i2c_sda_i,
 
             # Pads (directly hooked up to pads without extra logic required)
-            o_pdn = pads.pdn,
-            o_mclk = pads.mclk,
+
+            # Possibly shared
+            o_pdn = self.pdn,
+            o_mclk = self.mclk,
+            o_lrck = self.lrck,
+            o_bick = self.bick,
+
+            # Not shared
             o_sdin1 = pads.sdin1,
             i_sdout1 = pads.sdout1,
-            o_lrck = pads.lrck,
-            o_bick = pads.bick,
 
             # Ports (clock at clk_fs)
             o_cal_in0 = self.cal_in0,
@@ -179,8 +198,6 @@ class EurorackPmod(Module, AutoCSR):
 
         # Exposed CSRs
 
-        self.csr_reset = CSRStorage(1)
-
         self.csr_cal_in0 = CSRStatus(16)
         self.csr_cal_in1 = CSRStatus(16)
         self.csr_cal_in2 = CSRStatus(16)
@@ -211,7 +228,8 @@ class EurorackPmod(Module, AutoCSR):
         self.csr_touch6 = CSRStatus(8)
         self.csr_touch7 = CSRStatus(8)
 
-        self.csr_led_mode = CSRStorage(8)
+        # default LED mode to auto
+        self.csr_led_mode = CSRStorage(8, reset=0xFF)
         self.csr_led0 = CSRStorage(8)
         self.csr_led1 = CSRStorage(8)
         self.csr_led2 = CSRStorage(8)
@@ -223,8 +241,13 @@ class EurorackPmod(Module, AutoCSR):
 
         # Connect CSRs directly to inputs and outputs
 
+        if external_reset is None:
+            self.csr_reset = CSRStorage(1)
+            self.comb += [
+                    self.rst.eq(self.csr_reset.storage),
+            ]
+
         self.comb += [
-                self.rst.eq(self.csr_reset.storage),
                 self.csr_cal_in0.status.eq(self.cal_in0),
                 self.csr_cal_in1.status.eq(self.cal_in1),
                 self.csr_cal_in2.status.eq(self.cal_in2),

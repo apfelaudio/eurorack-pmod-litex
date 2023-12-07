@@ -342,6 +342,8 @@ fn main() -> ! {
     let pmod0 = peripherals.EURORACK_PMOD0;
     pmod0.reset(&mut timer);
 
+    let pmod1 = peripherals.EURORACK_PMOD1;
+
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
     let dma_router = Mutex::new(
@@ -408,16 +410,25 @@ fn main() -> ! {
                  state.trace.len_us())
             });
 
-            let touch = pmod0.touch();
+            let touch0 = pmod0.touch();
+            let touch1 = pmod1.touch();
 
-            draw::draw_main(&mut disp, opts.clone(), voices, &scope_samples, &touch,
+            draw::draw_main(&mut disp, opts.clone(), voices, &scope_samples, &touch0,
                             irq0_len_us, trace_main.len_us()).ok();
 
-            for (n, v) in touch.iter().enumerate() {
+            for (n, v) in touch0.iter().enumerate() {
                 if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
                     pmod0.led_set(n, (v >> 1) as i8);
                 } else {
                     pmod0.led_auto(n);
+                }
+            }
+
+            for (n, v) in touch1.iter().enumerate() {
+                if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
+                    pmod1.led_set(n, (v >> 1) as i8);
+                } else {
+                    pmod1.led_auto(n);
                 }
             }
 

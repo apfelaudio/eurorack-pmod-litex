@@ -26,12 +26,23 @@ from rtl.spi_dma import Wishbone2SPIDMA
 from rtl.dma_router import *
 
 _io_eurolut_proto1 = [
-    ("eurorack_pmod_aux3", 0,
+    ("eurorack_pmod_clk0", 0,
         # Global clock buffer through 74HC245PW,118
         Subsignal("mclk",    Pins("J16")),
         Subsignal("bick",    Pins("L5")),
         Subsignal("lrck",    Pins("M4")),
         Subsignal("pdn",     Pins("R3")),
+        IOStandard("LVCMOS33")
+    ),
+    ("eurorack_pmod_aux2", 0,
+        # Local signals AUX2
+        Subsignal("i2c_sda", Pins("L18")),
+        Subsignal("i2c_scl", Pins("J20")),
+        Subsignal("sdin1",   Pins("N17")),
+        Subsignal("sdout1",  Pins("M18")),
+        IOStandard("LVCMOS33")
+    ),
+    ("eurorack_pmod_aux3", 0,
         # Local signals AUX3
         Subsignal("i2c_sda", Pins("D2")),
         Subsignal("i2c_scl", Pins("E2")),
@@ -86,10 +97,7 @@ def add_audio_clocks(soc, sample_rate=46875):
     soc.sync.clk_256fs += clkdiv_fs.eq(clkdiv_fs+1)
     soc.comb += soc.crg.cd_clk_fs.clk.eq(clkdiv_fs[-1])
 
-def add_eurorack_pmod_mirror(soc, pads, mod_name):
-    # Instantiate a EurorackPmod.
-    eurorack_pmod_pads = soc.platform.request(pads)
-    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
+def into_mirror(soc, eurorack_pmod):
     # Pipe inputs straight to outputs.
     soc.comb += [
         eurorack_pmod.cal_out0.eq(eurorack_pmod.cal_in0),
@@ -97,12 +105,8 @@ def add_eurorack_pmod_mirror(soc, pads, mod_name):
         eurorack_pmod.cal_out2.eq(eurorack_pmod.cal_in2),
         eurorack_pmod.cal_out3.eq(eurorack_pmod.cal_in3),
     ]
-    soc.add_module(mod_name, eurorack_pmod)
 
-def add_eurorack_pmod_shifter(soc, pads, mod_name):
-    # Instantiate a EurorackPmod.
-    eurorack_pmod_pads = soc.platform.request(pads)
-    eurorack_pmod = EurorackPmod(soc.platform, eurorack_pmod_pads)
+def into_shifter(soc, eurorack_pmod):
 
     N_VOICES = 4
 
@@ -121,8 +125,6 @@ def add_eurorack_pmod_shifter(soc, pads, mod_name):
         soc.add_module(f"pitch_shift{voice}", pitch_shift)
         soc.add_module(f"karlsen_lpf{voice}", lpf)
         soc.add_module(f"dc_block{voice}", dc_block)
-
-    soc.add_module(mod_name, eurorack_pmod)
 
     add_dma_router(soc, eurorack_pmod, output_capable=False)
 
@@ -254,7 +256,19 @@ def main():
 
     add_audio_clocks(soc)
 
-    add_eurorack_pmod_shifter(soc, pads="eurorack_pmod_aux3", mod_name="eurorack_pmod0")
+    shared_pads = soc.platform.request("eurorack_pmod_clk0")
+
+    pmod0_pads = soc.platform.request("eurorack_pmod_aux3")
+    pmod0 = EurorackPmod(soc.platform, pmod0_pads, drive_shared_pads=shared_pads)
+    soc.add_module("eurorack_pmod0", pmod0)
+
+    into_shifter(soc, pmod0)
+
+    pmod1_pads = soc.platform.request("eurorack_pmod_aux2")
+    pmod1 = EurorackPmod(soc.platform, pmod1_pads, drive_shared_pads=None, external_reset=pmod0.rst)
+    soc.add_module("eurorack_pmod1", pmod1)
+
+    into_mirror(soc, pmod1)
 
     add_oled(soc)
 
