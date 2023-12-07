@@ -9,6 +9,7 @@ use litex_pac as pac;
 use riscv_rt::entry;
 use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
+use heapless::Vec;
 use embedded_midi::MidiIn;
 use core::arch::asm;
 use aligned_array::{Aligned, A4};
@@ -244,16 +245,44 @@ impl State {
 
         let lpf = get_lpfs(&peripherals);
 
+        /*
         while let Ok(event) = self.midi_in.read() {
             self.voice_manager.event(event, uptime_ms);
         }
 
         self.voice_manager.tick(uptime_ms, opts);
+        */
+
+        let pmod1 = &peripherals.EURORACK_PMOD1;
+        let pmod2 = &peripherals.EURORACK_PMOD2;
+        let pmod3 = &peripherals.EURORACK_PMOD3;
+
+        let touch1 = pmod1.touch();
+        let touch2 = pmod2.touch();
+        let touch3 = pmod3.touch();
+
+        let mut touch_concat: [u8; 8*3] = [0u8; 8*3];
+        touch_concat[0..8].copy_from_slice(&touch3);
+        touch_concat[8..16].copy_from_slice(&touch2);
+        touch_concat[16..24].copy_from_slice(&touch1);
+
+        // Create a vector of tuples where each tuple consists of the index and value.
+        let mut touch: Vec<(usize, u8), 24> = touch_concat.iter().enumerate().map(|(i, &item)| (i, item)).collect();
+        touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        let top4 = &touch[0..4];
+
+        let minor_map: [usize; 24] =  [
+               0,    2,    3,    5,    7,    8,    10, 12,
+            12+0, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 24,
+            24+0, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 36,
+        ];
 
         for n_voice in 0..N_VOICES {
-            let voice = &self.voice_manager.voices[n_voice];
-            shifter[n_voice].set_pitch(voice.pitch);
-            lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+            //let voice = &self.voice_manager.voices[n_voice];
+            let ampl = (top4[n_voice].1 as f32) / 256.0f32;
+            let pitch = note_to_pitch((minor_map[top4[n_voice].0] + 36) as u8);
+            shifter[n_voice].set_pitch(pitch);
+            lpf[n_voice].set_cutoff((ampl * 8000f32) as i16);
             lpf[n_voice].set_resonance(opts.adsr.resonance.value);
         }
     }
