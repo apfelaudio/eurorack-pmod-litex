@@ -388,33 +388,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
-name = "litex-fw"
-version = "0.1.0"
-dependencies = [
- "aligned-array",
- "critical-section",
- "embedded-graphics",
- "embedded-midi",
- "heapless",
- "image",
- "irq",
- "lazy_static",
- "litex-hal",
- "litex-interrupt",
- "litex-pac",
- "micromath",
- "midi-types",
- "paste",
- "riscv",
- "riscv-rt 0.11.0",
- "ssd1322",
- "strum",
- "strum_macros",
- "ufmt",
- "vexriscv",
-]
-
-[[package]]
 name = "litex-hal"
 version = "0.3.0"
 dependencies = [
@@ -554,6 +527,33 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide",
+]
+
+[[package]]
+name = "polyvec"
+version = "0.1.0"
+dependencies = [
+ "aligned-array",
+ "critical-section",
+ "embedded-graphics",
+ "embedded-midi",
+ "heapless",
+ "image",
+ "irq",
+ "lazy_static",
+ "litex-hal",
+ "litex-interrupt",
+ "litex-pac",
+ "micromath",
+ "midi-types",
+ "paste",
+ "riscv",
+ "riscv-rt 0.11.0",
+ "ssd1322",
+ "strum",
+ "strum_macros",
+ "ufmt",
+ "vexriscv",
 ]
 
 [[package]]

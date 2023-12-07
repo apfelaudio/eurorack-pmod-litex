@@ -19,11 +19,11 @@ FW_ROOT=`pwd`
 OBJCOPY=${OBJCOPY:=riscv-none-elf-objcopy}
 
 # Generate the Rust CSR bindings spat out by the LiteX SOC generated.
-cd $FW_ROOT/litex-pac/src
+cd $FW_ROOT/deps/generated-litex-pac/src
 svd2rust -i $BUILD_DIR/csr.svd --target riscv
 
 # Build the firmware .elf file
-cd $FW_ROOT/litex-fw
+cd $FW_ROOT/polyvec
 cargo clippy --target=riscv32imac-unknown-none-elf
 cargo build --target=riscv32imac-unknown-none-elf --release
 

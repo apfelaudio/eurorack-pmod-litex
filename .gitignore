@@ -1,5 +1,5 @@
 build/
 *__pycache__*
-firmware/litex-pac/src/*
+firmware/deps/generated-litex-pac/src/*
 .aider*
 *.fbi
