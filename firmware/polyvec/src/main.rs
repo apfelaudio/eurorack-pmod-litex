@@ -269,7 +269,8 @@ impl State {
         // Create a vector of tuples where each tuple consists of the index and value.
         let mut touch: Vec<(usize, u8), 24> = touch_concat.iter().enumerate().map(|(i, &item)| (i, item)).collect();
         touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-        let top4 = &touch[0..4];
+        let mut top4_by_pitch: Vec<(usize, u8), 4> = Vec::from_slice(&touch[0..4]).unwrap();
+        top4_by_pitch.sort_unstable_by(|a, b| b.0.cmp(&a.0));
 
         let minor_map: [usize; 24] =  [
                0,    2,    3,    5,    7,    8,    10, 12,
@@ -279,10 +280,12 @@ impl State {
 
         for n_voice in 0..N_VOICES {
             //let voice = &self.voice_manager.voices[n_voice];
-            let ampl = (top4[n_voice].1 as f32) / 256.0f32;
-            let pitch = note_to_pitch((minor_map[top4[n_voice].0] + 36) as u8);
+            let ampl = (top4_by_pitch[n_voice].1 as f32) / 256.0f32;
+            let pitch = note_to_pitch((minor_map[top4_by_pitch[n_voice].0] + 36) as u8);
             shifter[n_voice].set_pitch(pitch);
-            lpf[n_voice].set_cutoff((ampl * 8000f32) as i16);
+            let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
+            let ampl_new = ampl*0.05 + ampl_old*0.95;
+            lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
             lpf[n_voice].set_resonance(opts.adsr.resonance.value);
         }
     }

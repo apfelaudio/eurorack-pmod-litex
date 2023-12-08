@@ -26,10 +26,12 @@ pub trait WavetableOscillator {
 
 pub trait PitchShift {
     fn set_pitch(&self, value: i16);
+    fn pitch(&self) -> i16;
 }
 
 pub trait KarlsenLpf {
     fn set_cutoff(&self, value: i16);
+    fn cutoff(&self) -> i16;
     fn set_resonance(&self, value: i16);
 }
 
@@ -137,6 +139,9 @@ macro_rules! pitch_shift {
                     self.csr_pitch().write(|w| w.csr_pitch().bits(value as u16));
                 }
             }
+            fn pitch(&self) -> i16 {
+                (self.csr_pitch().read().bits() as u16) as i16
+            }
         })+
     };
 }
@@ -148,6 +153,9 @@ macro_rules! karlsen_lpf {
                 unsafe {
                     self.csr_g().write(|w| w.csr_g().bits(value as u16));
                 }
+            }
+            fn cutoff(&self) -> i16 {
+                (self.csr_g().read().bits() as u16) as i16
             }
             fn set_resonance(&self, value: i16) {
                 unsafe {
