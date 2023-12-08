@@ -281,12 +281,18 @@ impl State {
         for n_voice in 0..N_VOICES {
             //let voice = &self.voice_manager.voices[n_voice];
             let ampl = (top4_by_pitch[n_voice].1 as f32) / 256.0f32;
-            let pitch = note_to_pitch((minor_map[top4_by_pitch[n_voice].0] + 36) as u8);
+            let note = (minor_map[top4_by_pitch[n_voice].0] + 36) as u8;
+            let pitch = note_to_pitch(note);
             shifter[n_voice].set_pitch(pitch);
             let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
             let ampl_new = ampl*0.05 + ampl_old*0.95;
             lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
             lpf[n_voice].set_resonance(opts.adsr.resonance.value);
+
+            // Push to voice manager to visualizations work
+            self.voice_manager.voices[n_voice].amplitude = ampl_new;
+            self.voice_manager.voices[n_voice].note = note;
+            self.voice_manager.voices[n_voice].state = VoiceState::Sustain;
         }
     }
 }
