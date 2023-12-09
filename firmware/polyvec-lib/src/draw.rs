@@ -310,7 +310,7 @@ where
     Ok(())
 }
 
-pub fn draw_boot_splash<D>(d: &mut D) -> Result<(), D::Error>
+pub fn draw_boot_splash<D>(d: &mut D, state_string: &'static str) -> Result<(), D::Error>
 where
     D: DrawTarget<Color = Gray4>,
 {
@@ -326,13 +326,13 @@ where
     .draw(d)?;
 
     s.clear();
-    ufmt::uwrite!(&mut s, "PRESS to halt boot\n").ok();
+    ufmt::uwrite!(&mut s, "{}", state_string).ok();
     let character_style_s = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
     Text::with_alignment(
         &s,
-        Point::new(1, 62),
+        Point::new(128, 61),
         character_style_s,
-        Alignment::Left,
+        Alignment::Center,
     )
     .draw(d)?;
 
@@ -421,7 +421,7 @@ mod tests {
         let mut disp = FakeDisplay {
             img: ImageBuffer::new(256, 64)
         };
-        draw_boot_splash(&mut disp).unwrap();
+        draw_boot_splash(&mut disp, "booting ...").unwrap();
         let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
         rz.save("boot_splash.png").unwrap();
     }

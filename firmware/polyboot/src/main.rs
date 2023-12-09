@@ -17,6 +17,8 @@ use ssd1322 as oled;
 use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext,
                   tud_dfu_finish_flashing, dfu_state_t, dfu_status_t};
 
+use micromath::F32Ext;
+
 use polyvec_lib::voice::*;
 use polyvec_lib::draw;
 use polyvec_lib::opt;
@@ -130,10 +132,15 @@ pub extern "C" fn _putchar(c: u8)  {
     log::_logger_write(&[c]);
 }
 
+const USB_DEVICE_CONTROLLER_CONNECT_ADDRESS: *mut u32 = 0xF0010000 as *mut u32;
 const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
 
 unsafe fn usb_device_controller_reset_write(value: u32) {
     core::ptr::write_volatile(USB_DEVICE_CONTROLLER_RESET_ADDRESS, value);
+}
+
+unsafe fn usb_device_controller_connect_write(value: u32) {
+    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_CONNECT_ADDRESS, value);
 }
 
 #[entry]
@@ -143,48 +150,101 @@ fn main() -> ! {
     log::init(peripherals.UART_MIDI);
     info!("hello from litex-fw!");
 
-
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 
     let pmod0 = peripherals.EURORACK_PMOD0;
     pmod0.reset(&mut timer);
+    let pmod1 = peripherals.EURORACK_PMOD1;
+    let pmod2 = peripherals.EURORACK_PMOD2;
+    let pmod3 = peripherals.EURORACK_PMOD3;
+
+    for i in 0..8 {
+        pmod0.led_set(i, 0i8);
+        pmod1.led_set(i, 0i8);
+        pmod2.led_set(i, 0i8);
+        pmod3.led_set(i, 0i8);
+    }
 
     let mut disp = oled_init(&mut timer, peripherals.OLED_SPI);
     let mut spi_dma = SpiDma::new(peripherals.SPI_DMA, pac::OLED_SPI::PTR);
-    let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 
-    draw::draw_boot_splash(&mut disp).ok();
+    let mut skip_dfu: bool = true;
 
+    if peripherals.ENCODER_BUTTON.in_().read().bits() == 0 {
+        draw::draw_boot_splash(&mut disp, "Booting ...").ok();
+    } else {
+        draw::draw_boot_splash(&mut disp, "Waiting for DFU ...").ok();
+        skip_dfu = false;
+    }
+
+    // WARN: Don't update the screen while USB is being serviced. It seems screen
+    // DMA is enough to cause the USB stack to spuriously fail internal assertions.
     let fb = disp.swap_clear();
     fence();
     spi_dma.transfer(fb.as_ptr(), fb.len());
     spi_dma.block();
 
+    // LED pattern to test all the LEDs for a couple secs before we boot or DFU
+    loop {
+        let uptime_ms = (timer.uptime() / ((SYSTEM_CLOCK_FREQUENCY as u64)/1000u64)) as u32;
+
+        for i in 0..8 {
+            pmod0.led_set(i, (f32::sin((uptime_ms as f32)/100.0f32+(i as f32)) * 32.0f32) as i8);
+            pmod1.led_set(i, (f32::sin((uptime_ms as f32)/100.0f32+((i+8) as f32)) * 32.0f32) as i8);
+            pmod2.led_set(i, (f32::sin((uptime_ms as f32)/100.0f32+((i+16) as f32)) * 32.0f32) as i8);
+            pmod3.led_set(i, (f32::sin((uptime_ms as f32)/100.0f32+((i+24) as f32)) * 32.0f32) as i8);
+        }
+
+        if uptime_ms > 3500 {
+            break;
+        }
+    }
+
+    for i in 0..8 {
+        pmod0.led_set(i, 0i8);
+        pmod1.led_set(i, 0i8);
+        pmod2.led_set(i, 0i8);
+        pmod3.led_set(i, 0i8);
+    }
+
+    if !skip_dfu {
+
+        unsafe {
+            // Warn: init USB AFTER first framebuffer xfer done.
+            usb_device_controller_reset_write(1);
+            timer.delay_ms(100u32);
+            usb_device_controller_reset_write(0);
+            timer.delay_ms(100u32);
+            tusb_init();
+
+            // Enable machine external interrupts (basically everything added on by LiteX).
+            riscv::register::mie::set_mext();
+
+            // WARN: delay before interrupt enable after tusb_init(), the USB core takes a while
+            // to spin up after tusb_init() if nothing is connected, apparently.
+            timer.delay_ms(100u32);
+
+            // WARN: Don't do this before IRQs are registered for this scope,
+            // otherwise you'll hang forever :)
+            // Finally enable interrupts
+            riscv::interrupt::enable();
+        }
+
+        loop {
+            unsafe {
+                tud_task_ext(u32::MAX, false);
+            }
+        }
+
+    }
+
+    // Disconnect from USB and boot firmware.
     unsafe {
-
-        // Warn: init USB AFTER first framebuffer xfer done.
-        usb_device_controller_reset_write(1);
-        timer.delay_ms(100u32);
-        usb_device_controller_reset_write(0);
-        timer.delay_ms(100u32);
-        tusb_init();
-
-        // Enable machine external interrupts (basically everything added on by LiteX).
-        riscv::register::mie::set_mext();
-
-        // WARN: delay before interrupt enable after tusb_init(), the USB core takes a while
-        // to spin up after tusb_init() if nothing is connected, apparently.
-        timer.delay_ms(100u32);
-
-        // WARN: Don't do this before IRQs are registered for this scope,
-        // otherwise you'll hang forever :)
-        // Finally enable interrupts
-        riscv::interrupt::enable();
+        usb_device_controller_connect_write(0);
+        timer.delay_ms(50u32);
+        peripherals.PROGRAMN.out().write(|w| w.bits(1));
     }
 
     loop {
-        unsafe {
-            tud_task_ext(u32::MAX, false);
-        }
     }
 }
