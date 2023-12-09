@@ -11,11 +11,13 @@ use litex_hal::hal::digital::v2::OutputPin;
 use heapless::String;
 use heapless::Vec;
 use core::arch::asm;
+use core::slice;
 
 use ssd1322 as oled;
 
 use tinyusb_sys::{tusb_init, dcd_int_handler, tud_task_ext,
-                  tud_dfu_finish_flashing, dfu_state_t, dfu_status_t};
+                  tud_dfu_finish_flashing, dfu_state_t, dfu_status_t,
+                  CFG_TUD_DFU_XFER_BUFSIZE};
 
 use micromath::F32Ext;
 
@@ -26,6 +28,9 @@ use polyvec_lib::opt;
 use polyvec_hal::gw::*;
 use polyvec_hal::log::*;
 use polyvec_hal::*;
+
+static mut BUS_RESET: bool = false;
+static mut FLASH_CMD: bool = false;
 
 #[export_name = "DefaultHandler"]
 unsafe fn irq_handler() {
@@ -47,6 +52,10 @@ unsafe fn irq_handler() {
        (pending_irq & (1 <<  irq_usb_in_ep)) != 0 ||
        (pending_irq & (1 << irq_usb_out_ep)) != 0 {
         dcd_int_handler(0);
+    }
+
+    if (pending_irq & (1 << irq_usb_device)) != 0 {
+        BUS_RESET = true;
     }
 }
 
@@ -102,21 +111,214 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
     disp
 }
 
+
+const USB_DEVICE_CONTROLLER_CONNECT_ADDRESS: *mut u32 = 0xF0010000 as *mut u32;
+const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
+
+unsafe fn usb_device_controller_reset_write(value: u32) {
+    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_RESET_ADDRESS, value);
+}
+
+unsafe fn usb_device_controller_connect_write(value: u32) {
+    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_CONNECT_ADDRESS, value);
+}
+
+pub trait SpiFlash {
+    unsafe fn transfer_byte(&self, b: u8) -> u8;
+    unsafe fn cmd(&self, header: &[u8], data: &[u8]);
+    unsafe fn write_enable(&self);
+    unsafe fn sector_erase(&self, addr: usize);
+    unsafe fn page_program(&self, addr: usize, data: &[u8]);
+    unsafe fn status_busy(&self) -> bool;
+    unsafe fn erase_range(&self, addr: usize, len: usize);
+    unsafe fn peek(&self, addr: usize) -> u8;
+    unsafe fn write_stream(&self, addr: usize, data: &[u8]);
+}
+
+const SPI_FLASH_BLOCK_SIZE: usize = 256;
+const SPI_FLASH_PAGE_SIZE: usize = 64*1024;
+const SPIFLASH_BASE: *mut u8 = 0x00200000 as *mut u8;
+
+macro_rules! spi_flash {
+    ($($t:ty),+ $(,)?) => {
+        $(impl SpiFlash for $t {
+            unsafe fn transfer_byte(&self, b: u8) -> u8 {
+                while self.master_status().read().tx_ready() == false { }
+                self.master_rxtx().write(|w| w.bits(b as u32));
+                while self.master_status().read().rx_ready() == false { }
+                self.master_rxtx().read().bits() as u8
+            }
+
+            unsafe fn cmd(&self, header: &[u8], data: &[u8]) {
+
+                self.master_phyconfig().write( |w| w
+                    .len().bits(8)
+                    .width().bits(1)
+                    .mask().bits(1)
+                );
+
+                self.master_cs().write(|w| w.bits(1));
+
+                fence();
+
+                for i in 0..header.len() {
+                    self.transfer_byte(header[i]);
+                }
+
+                for i in 0..data.len() {
+                    self.transfer_byte(data[i]);
+                }
+
+                self.master_cs().write(|w| w.bits(0));
+
+                fence();
+            }
+
+            unsafe fn write_enable(&self) {
+                self.cmd(&[0x06], &[]);
+            }
+
+            unsafe fn sector_erase(&self, addr: usize) {
+                let header = [
+                    0xd8u8,
+                    (addr>>16) as u8,
+                    (addr>>8)  as u8,
+                    (addr>>0)  as u8,
+                ];
+                self.cmd(&header, &[]);
+            }
+
+            unsafe fn page_program(&self, addr: usize, data: &[u8]) {
+                let header = [
+                    0x02u8,
+                    (addr>>16) as u8,
+                    (addr>>8)  as u8,
+                    (addr>>0)  as u8,
+                ];
+                self.cmd(&header, data);
+            }
+
+            unsafe fn status_busy(&self) -> bool {
+                self.master_phyconfig().write( |w| w
+                    .len().bits(8)
+                    .width().bits(1)
+                    .mask().bits(1)
+                );
+                self.master_cs().write(|w| w.bits(1));
+
+                fence();
+
+                self.transfer_byte(0x05u8);
+                self.transfer_byte(0x00u8);
+                let status2 = self.transfer_byte(0x00u8);
+                self.transfer_byte(0x00u8);
+
+                self.master_cs().write(|w| w.bits(0));
+
+                fence();
+
+                (status2& 1) != 0
+            }
+
+            unsafe fn peek(&self, addr: usize) -> u8 {
+                core::ptr::read_volatile(SPIFLASH_BASE.offset(addr as isize))
+            }
+
+            unsafe fn erase_range(&self, addr: usize, len: usize) {
+                let mut i: usize = 0;
+                while i < len {
+                    info!("erase @ {:#x}", addr + i);
+                    self.write_enable();
+                    self.sector_erase(addr + i);
+
+                    while self.status_busy() { }
+
+                    for j in 0..SPI_FLASH_PAGE_SIZE {
+                        let peek = self.peek(addr+i+j);
+                        if peek != 0xff {
+                            info!("error: erase failed at {:#x} (got {:#x}, want {:#x})",
+                                  addr+i+j, peek, 0xff);
+                        }
+                    }
+                    i += SPI_FLASH_PAGE_SIZE;
+                }
+            }
+
+            unsafe fn write_stream(&self, addr: usize, data: &[u8]) {
+                let mut w_len: usize = usize::min(data.len(), SPI_FLASH_BLOCK_SIZE);
+                let mut offset: usize = 0;
+                while w_len > 0 {
+                    //info!("write @ 0x{:#x}", addr+offset);
+                    self.write_enable();
+                    self.page_program(addr+offset, &data[offset..offset+w_len]);
+                    while self.status_busy() { }
+                    for j in 0..w_len {
+                        let peek = self.peek(addr+offset+j);
+                        if peek != data[offset+j] {
+                            info!("error: verify failed at {:#x} (got {:#x}, want {:#x})",
+                                  addr+offset+j, peek, data[offset+j]);
+                        }
+                    }
+                    offset += w_len;
+                    w_len = usize::min(data.len()-offset, SPI_FLASH_BLOCK_SIZE);
+                }
+            }
+        })+
+    };
+}
+
+spi_flash!(pac::SPIFLASH_CORE);
+
 #[no_mangle]
 pub extern "C" fn tud_dfu_get_timeout_cb(_alt: u8, state: u8) -> u32 {
     match state {
-        state if state == dfu_state_t::DFU_DNBUSY as u8 => 10,
+        state if state == dfu_state_t::DFU_DNBUSY as u8 => 1,
         state if state == dfu_state_t::DFU_MANIFEST as u8 => 0,
         _ => 0
     }
 }
 
 #[no_mangle]
-pub extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
-    info!("DOWNLOAD alt={} block_num={} len={}", alt, block_num, length);
-    unsafe {
-        tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
+pub unsafe extern "C" fn tud_dfu_download_cb(alt: u8, block_num: u16, data: *const u8, length: u16)  {
+    //info!("DOWNLOAD alt={} block_num={} len={}", alt, block_num, length);
+
+    FLASH_CMD = true;
+
+    let alt_to_base: [usize; 2] = [
+        0x100000, // User Gateware
+        0x1E0000, // User Firmware
+    ];
+
+    let alt_to_len: [usize; 2] = [
+        0x100000, // User Gateware
+        0x010000, // User Firmware
+    ];
+
+    let alt = alt as usize;
+    let block_num = block_num as usize;
+    let length = length as usize;
+
+    if alt >= alt_to_base.len() {
+		tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_ERR_ADDRESS as u8);
+        return;
     }
+
+    if (block_num * (CFG_TUD_DFU_XFER_BUFSIZE as usize)) >= alt_to_len[alt] {
+		tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_ERR_ADDRESS as u8);
+        return;
+    }
+
+    let peripherals = pac::Peripherals::steal();
+
+	let flash_address: usize = alt_to_base[alt] + (block_num as usize) * (CFG_TUD_DFU_XFER_BUFSIZE as usize);
+
+	if (flash_address & (SPI_FLASH_PAGE_SIZE - 1)) == 0 {
+        peripherals.SPIFLASH_CORE.erase_range(flash_address, SPI_FLASH_PAGE_SIZE);
+    }
+
+    peripherals.SPIFLASH_CORE.write_stream(flash_address, slice::from_raw_parts(data, length));
+
+    tud_dfu_finish_flashing(dfu_status_t::DFU_STATUS_OK as u8);
 }
 
 #[no_mangle]
@@ -130,17 +332,6 @@ pub extern "C" fn tud_dfu_manifest_cb(_alt: u8)  {
 #[no_mangle]
 pub extern "C" fn _putchar(c: u8)  {
     log::_logger_write(&[c]);
-}
-
-const USB_DEVICE_CONTROLLER_CONNECT_ADDRESS: *mut u32 = 0xF0010000 as *mut u32;
-const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
-
-unsafe fn usb_device_controller_reset_write(value: u32) {
-    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_RESET_ADDRESS, value);
-}
-
-unsafe fn usb_device_controller_connect_write(value: u32) {
-    core::ptr::write_volatile(USB_DEVICE_CONTROLLER_CONNECT_ADDRESS, value);
 }
 
 #[entry]
@@ -233,13 +424,21 @@ fn main() -> ! {
         loop {
             unsafe {
                 tud_task_ext(u32::MAX, false);
+                if BUS_RESET {
+                    BUS_RESET = false;
+                    if FLASH_CMD {
+                        break;
+                    }
+                }
             }
         }
 
     }
 
+
     // Disconnect from USB and boot firmware.
     unsafe {
+        riscv::interrupt::disable();
         usb_device_controller_connect_write(0);
         timer.delay_ms(50u32);
         peripherals.PROGRAMN.out().write(|w| w.bits(1));
