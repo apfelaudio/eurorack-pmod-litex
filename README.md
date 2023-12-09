@@ -4,7 +4,7 @@
 
 ## Example of using [eurorack-pmod](https://github.com/apfelaudio/eurorack-pmod) with LiteX.
 
-TODO: add nice block diagram here
+![block diagram of gateware / firmware](doc/block_diagram.png)
 
 The `example-ecpix-5.py` SoC in this repository has the following main parts:
 - A softcore (RISCV `vexriscv_smp`, here we use `rv32im` without compressed instructions).
