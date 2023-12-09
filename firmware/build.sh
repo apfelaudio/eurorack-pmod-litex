@@ -29,3 +29,7 @@ cargo build --target=riscv32imac-unknown-none-elf --release
 
 # Copy it into a binary that litex_term can upload.
 ${OBJCOPY} target/riscv32imac-unknown-none-elf/release/polyvec_main -O binary $BUILD_DIR/rust-fw.bin
+
+cd $FW_ROOT/polyboot
+cargo build --target=riscv32imac-unknown-none-elf --release
+${OBJCOPY} target/riscv32imac-unknown-none-elf/release/polyboot -O binary $BUILD_DIR/bootloader.bin

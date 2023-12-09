@@ -310,6 +310,35 @@ where
     Ok(())
 }
 
+pub fn draw_boot_splash<D>(d: &mut D) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Gray4>,
+{
+    let mut s: String<64> = String::new();
+    ufmt::uwrite!(&mut s, "PolyVec // Bootloader\n\napfelaudio.com").ok();
+    let character_style_h = MonoTextStyle::new(&FONT_5X7, Gray4::WHITE);
+    Text::with_alignment(
+        &s,
+        Point::new(128, 25),
+        character_style_h,
+        Alignment::Center,
+    )
+    .draw(d)?;
+
+    s.clear();
+    ufmt::uwrite!(&mut s, "PRESS to halt boot\n").ok();
+    let character_style_s = MonoTextStyle::new(&FONT_4X6, Gray4::WHITE);
+    Text::with_alignment(
+        &s,
+        Point::new(1, 62),
+        character_style_s,
+        Alignment::Left,
+    )
+    .draw(d)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,5 +414,15 @@ mod tests {
         draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
         let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
         rz.save("screen_touch.png").unwrap();
+    }
+
+    #[test]
+    fn splash() {
+        let mut disp = FakeDisplay {
+            img: ImageBuffer::new(256, 64)
+        };
+        draw_boot_splash(&mut disp).unwrap();
+        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
+        rz.save("boot_splash.png").unwrap();
     }
 }

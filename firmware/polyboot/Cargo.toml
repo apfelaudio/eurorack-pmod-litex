@@ -1,0 +1,31 @@
+[package]
+name = "polyboot"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "polyboot"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+polyvec-lib = { path = "../polyvec-lib" }
+polyvec-hal = { path = "../polyvec-hal" }
+riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
+riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
+litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
+litex-pac = { path = "../deps/generated-litex-pac", features = ["rt"] }
+ssd1322 = { path = "../deps/ssd1322", features = [] }
+micromath = "2.0.0"
+paste = "1.0.14"
+embedded-graphics = "0.8.1"
+heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+ufmt = "0.2.0"
+vexriscv = "0.0.3"
+tinyusb-sys = { path = "../deps/tinyusb-sys-rs"}
+
+
+[profile.release]
+lto = true
+opt-level = 3
