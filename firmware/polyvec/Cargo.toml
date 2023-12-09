@@ -3,10 +3,6 @@ name = "polyvec"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "polyvec_lib"
-path = "src/lib.rs"
-
 [[bin]]
 name = "polyvec_main"
 path = "src/main.rs"
@@ -14,6 +10,8 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+polyvec-lib = { path = "../polyvec-lib" }
+polyvec-hal = { path = "../polyvec-hal" }
 riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
 riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
 litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }
@@ -26,7 +24,6 @@ paste = "1.0.14"
 embedded-graphics = "0.8.1"
 heapless = { version = "0.7.16", features = ["ufmt-impl"] }
 ufmt = "0.2.0"
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 vexriscv = "0.0.3"
 aligned-array = "1.0.1"
 irq = "0.2.3"
@@ -34,10 +31,6 @@ litex-interrupt = { path = "../deps/litex-interrupt" }
 critical-section = "1.1.2"
 strum_macros = "0.25.3"
 strum = {version = "0.25.0", features = ["derive"], default-features=false}
-
-[dev-dependencies]
-critical-section = { version = "1.1.2", features = ["std"] }
-image = "0.24.7"
 
 [profile.release]
 lto = true

@@ -6,11 +6,27 @@ use litex_pac as pac;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 
+use crate::info;
+
 litex_hal::uart! {
     Uart: pac::UART_MIDI,
 }
 
 static mut UART_WRITER: Option<Uart> = None;
+
+#[macro_export]
+macro_rules! info {
+    () => {
+        _logger_write(b"\n");
+    };
+    ($($arg:tt)*) => {{
+        let mut s: String<256> = String::new();
+        ufmt::uwrite!(&mut s, $($arg)*).ok();
+        _logger_write(&s.into_bytes());
+        _logger_write(b"\r");
+        _logger_write(b"\n");
+    }};
+}
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -67,18 +83,3 @@ pub fn init(uart: pac::UART_MIDI) {
         }
     }
 }
-
-macro_rules! info {
-    () => {
-        _logger_write(b"\n");
-    };
-    ($($arg:tt)*) => {{
-        let mut s: String<256> = String::new();
-        ufmt::uwrite!(&mut s, $($arg)*).ok();
-        _logger_write(&s.into_bytes());
-        _logger_write(b"\r");
-        _logger_write(b"\n");
-    }};
-}
-
-pub(crate) use info;

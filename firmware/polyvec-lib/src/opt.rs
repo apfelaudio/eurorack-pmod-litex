@@ -44,6 +44,13 @@ pub enum TouchLedMirror {
 }
 
 #[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
+#[strum(serialize_all = "kebab-case")]
+pub enum NoteControl {
+    Touch,
+    Midi,
+}
+
+#[derive(Clone, Copy, PartialEq, EnumIter, IntoStaticStr)]
 #[strum(serialize_all = "SCREAMING-KEBAB-CASE")]
 pub enum Screen {
     Adsr,
@@ -71,7 +78,7 @@ pub struct ScopeOptions {
 #[derive(Clone)]
 pub struct TouchOptions {
     pub selected: Option<usize>,
-    pub threshold: NumOption<u8>,
+    pub note_control: EnumOption<NoteControl>,
     pub led_mirror: EnumOption<TouchLedMirror>,
 }
 
@@ -106,7 +113,7 @@ impl_option_view!(ScopeOptions,
                   delay_len, trig_lvl, trig_sns);
 
 impl_option_view!(TouchOptions,
-                  led_mirror, threshold);
+                  note_control, led_mirror);
 
 
 #[derive(Clone)]
@@ -184,12 +191,9 @@ impl Options {
             },
             touch: TouchOptions {
                 selected: None,
-                threshold: NumOption{
-                    name: "thresh".into(),
-                    value: 128,
-                    step: 1,
-                    min: 0,
-                    max: 255,
+                note_control: EnumOption{
+                    name: "control".into(),
+                    value: NoteControl::Touch,
                 },
                 led_mirror: EnumOption{
                     name: "led".into(),

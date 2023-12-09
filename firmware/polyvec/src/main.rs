@@ -24,10 +24,9 @@ use polyvec_lib::voice::*;
 use polyvec_lib::draw;
 use polyvec_lib::opt;
 
-mod gw;
-mod log;
-use crate::gw::*;
-use crate::log::*;
+use polyvec_hal::gw::*;
+use polyvec_hal::log::*;
+use polyvec_hal::*;
 
 const N_VOICES: usize = 4;
 const SCOPE_SAMPLES: usize = 128;
@@ -203,6 +202,7 @@ struct State {
     midi_in: MidiIn<UartMidi>,
     voice_manager: VoiceManager,
     encoder: Encoder,
+    last_control_type: Option<opt::NoteControl>,
 }
 
 impl State {
@@ -212,6 +212,7 @@ impl State {
             midi_in,
             voice_manager: VoiceManager::new(),
             encoder,
+            last_control_type: None,
         }
     }
 
@@ -245,55 +246,67 @@ impl State {
 
         let lpf = get_lpfs(&peripherals);
 
-        /*
-        while let Ok(event) = self.midi_in.read() {
-            self.voice_manager.event(event, uptime_ms);
+        if let Some(cv) = self.last_control_type {
+            if cv != opts.touch.note_control.value {
+                self.voice_manager = VoiceManager::new();
+            }
         }
 
-        self.voice_manager.tick(uptime_ms, opts);
-        */
+        if opts.touch.note_control.value == opt::NoteControl::Midi {
+            while let Ok(event) = self.midi_in.read() {
+                self.voice_manager.event(event, uptime_ms);
+            }
+            self.voice_manager.tick(uptime_ms, opts);
+            for n_voice in 0..N_VOICES {
+                let voice = &self.voice_manager.voices[n_voice];
+                shifter[n_voice].set_pitch(voice.pitch);
+                lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
+                lpf[n_voice].set_resonance(opts.adsr.resonance.value);
+            }
+        } else {
+            let pmod1 = &peripherals.EURORACK_PMOD1;
+            let pmod2 = &peripherals.EURORACK_PMOD2;
+            let pmod3 = &peripherals.EURORACK_PMOD3;
 
-        let pmod1 = &peripherals.EURORACK_PMOD1;
-        let pmod2 = &peripherals.EURORACK_PMOD2;
-        let pmod3 = &peripherals.EURORACK_PMOD3;
+            let touch1 = pmod1.touch();
+            let touch2 = pmod2.touch();
+            let touch3 = pmod3.touch();
 
-        let touch1 = pmod1.touch();
-        let touch2 = pmod2.touch();
-        let touch3 = pmod3.touch();
+            let mut touch_concat: [u8; 8*3] = [0u8; 8*3];
+            touch_concat[0..8].copy_from_slice(&touch3);
+            touch_concat[8..16].copy_from_slice(&touch2);
+            touch_concat[16..24].copy_from_slice(&touch1);
 
-        let mut touch_concat: [u8; 8*3] = [0u8; 8*3];
-        touch_concat[0..8].copy_from_slice(&touch3);
-        touch_concat[8..16].copy_from_slice(&touch2);
-        touch_concat[16..24].copy_from_slice(&touch1);
+            // Create a vector of tuples where each tuple consists of the index and value.
+            let mut touch: Vec<(usize, u8), 24> = touch_concat.iter().enumerate().map(|(i, &item)| (i, item)).collect();
+            touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+            let mut top4_by_pitch: Vec<(usize, u8), 4> = Vec::from_slice(&touch[0..4]).unwrap();
+            top4_by_pitch.sort_unstable_by(|a, b| b.0.cmp(&a.0));
 
-        // Create a vector of tuples where each tuple consists of the index and value.
-        let mut touch: Vec<(usize, u8), 24> = touch_concat.iter().enumerate().map(|(i, &item)| (i, item)).collect();
-        touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-        let mut top4_by_pitch: Vec<(usize, u8), 4> = Vec::from_slice(&touch[0..4]).unwrap();
-        top4_by_pitch.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+            let minor_map: [usize; 24] =  [
+                   0,    2,    3,    5,    7,    8,    10, 12,
+                  12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 24,
+                  24, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 36,
+            ];
 
-        let minor_map: [usize; 24] =  [
-               0,    2,    3,    5,    7,    8,    10, 12,
-            12+0, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 24,
-            24+0, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 36,
-        ];
+            for n_voice in 0..N_VOICES {
+                let ampl = (top4_by_pitch[n_voice].1 as f32) / 256.0f32;
+                let note = (minor_map[top4_by_pitch[n_voice].0] + 36) as u8;
+                let pitch = note_to_pitch(note);
+                shifter[n_voice].set_pitch(pitch);
+                let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
+                let ampl_new = ampl*0.05 + ampl_old*0.95;
+                lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
+                lpf[n_voice].set_resonance(opts.adsr.resonance.value);
 
-        for n_voice in 0..N_VOICES {
-            //let voice = &self.voice_manager.voices[n_voice];
-            let ampl = (top4_by_pitch[n_voice].1 as f32) / 256.0f32;
-            let note = (minor_map[top4_by_pitch[n_voice].0] + 36) as u8;
-            let pitch = note_to_pitch(note);
-            shifter[n_voice].set_pitch(pitch);
-            let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
-            let ampl_new = ampl*0.05 + ampl_old*0.95;
-            lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
-            lpf[n_voice].set_resonance(opts.adsr.resonance.value);
-
-            // Push to voice manager to visualizations work
-            self.voice_manager.voices[n_voice].amplitude = ampl_new;
-            self.voice_manager.voices[n_voice].note = note;
-            self.voice_manager.voices[n_voice].state = VoiceState::Sustain;
+                // Push to voice manager to visualizations work
+                self.voice_manager.voices[n_voice].amplitude = ampl_new;
+                self.voice_manager.voices[n_voice].note = note;
+                self.voice_manager.voices[n_voice].state = VoiceState::Sustain;
+            }
         }
+
+        self.last_control_type = Some(opts.touch.note_control.value);
     }
 }
 
@@ -351,7 +364,7 @@ fn oled_init(timer: &mut Timer, oled_spi: pac::OLED_SPI)
 
 #[no_mangle]
 pub extern "C" fn _putchar(c: u8)  {
-    _logger_write(&[c]);
+    log::_logger_write(&[c]);
 }
 
 const USB_DEVICE_CONTROLLER_RESET_ADDRESS: *mut u32 = 0xF0010004 as *mut u32;
@@ -365,7 +378,7 @@ fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
 
     log::init(peripherals.UART_MIDI);
-    log::info!("hello from litex-fw!");
+    info!("hello from litex-fw!");
 
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
