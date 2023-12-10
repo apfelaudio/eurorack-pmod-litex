@@ -9,7 +9,7 @@ use litex_hal::uart::UartError;
 use crate::info;
 
 litex_hal::uart! {
-    Uart: pac::UART_MIDI,
+    Uart: pac::UART,
 }
 
 static mut UART_WRITER: Option<Uart> = None;
@@ -75,7 +75,7 @@ pub fn _logger_write(bytes: &[u8]) {
     }
 }
 
-pub fn init(uart: pac::UART_MIDI) {
+pub fn init(uart: pac::UART) {
     unsafe {
         UART_WRITER = Some(Uart::new(uart));
         if let Some(_) = &mut UART_WRITER {

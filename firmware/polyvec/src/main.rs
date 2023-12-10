@@ -377,7 +377,7 @@ unsafe fn usb_device_controller_reset_write(value: u32) {
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
 
-    log::init(peripherals.UART_MIDI);
+    log::init(peripherals.UART);
     info!("hello from litex-fw!");
 
 
@@ -403,7 +403,7 @@ fn main() -> ! {
         DmaRouter::new(peripherals.DMA_ROUTER0,
                        unsafe { BUF_IN.as_mut_ptr() as u32 },
                        BUF_SZ_WORDS as u32));
-    let uart_midi = UartMidi::new(peripherals.UART);
+    let uart_midi = UartMidi::new(peripherals.UART_MIDI);
     let midi_in =  MidiIn::new(uart_midi);
     let encoder = Encoder::new(peripherals.ROTARY_ENCODER, peripherals.ENCODER_BUTTON);
 

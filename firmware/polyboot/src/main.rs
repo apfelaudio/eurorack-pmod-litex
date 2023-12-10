@@ -137,7 +137,7 @@ pub trait SpiFlash {
 
 const SPI_FLASH_BLOCK_SIZE: usize = 256;
 const SPI_FLASH_PAGE_SIZE: usize = 64*1024;
-const SPIFLASH_BASE: *mut u8 = 0x00200000 as *mut u8;
+const SPIFLASH_BASE: *mut u8 = 0x00800000 as *mut u8;
 
 macro_rules! spi_flash {
     ($($t:ty),+ $(,)?) => {
@@ -248,7 +248,7 @@ macro_rules! spi_flash {
                 let mut w_len: usize = usize::min(data.len(), SPI_FLASH_BLOCK_SIZE);
                 let mut offset: usize = 0;
                 while w_len > 0 {
-                    //info!("write @ 0x{:#x}", addr+offset);
+                    //info!("write {} bytes @ {:#x}", w_len, addr+offset);
                     self.write_enable();
                     self.page_program(addr+offset, &data[offset..offset+w_len]);
                     while self.status_busy() { }
@@ -338,8 +338,15 @@ pub extern "C" fn _putchar(c: u8)  {
 fn main() -> ! {
     let peripherals = unsafe { pac::Peripherals::steal() };
 
-    log::init(peripherals.UART_MIDI);
+    log::init(peripherals.UART);
     info!("hello from litex-fw!");
+
+    /*
+    unsafe {
+    let data: [u8; 512] = [42u8; 512];
+    tud_dfu_download_cb(0, 0, data.as_ptr(), data.len() as u16);
+    }
+    */
 
     let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
 

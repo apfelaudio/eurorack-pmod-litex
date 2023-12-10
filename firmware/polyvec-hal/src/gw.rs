@@ -181,7 +181,7 @@ karlsen_lpf!(pac::KARLSEN_LPF2);
 karlsen_lpf!(pac::KARLSEN_LPF3);
 
 litex_hal::uart! {
-    UartMidi: litex_pac::UART,
+    UartMidi: litex_pac::UART_MIDI,
 }
 
 litex_hal::timer! {

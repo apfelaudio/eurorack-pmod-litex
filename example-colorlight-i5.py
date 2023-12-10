@@ -244,9 +244,9 @@ def add_uart_midi(soc):
 
 def main():
     from litex.build.parser import LiteXArgumentParser
-    parser = LiteXArgumentParser(platform=colorlight_i5.Platform, description="LiteX SoC on Colorlight I5.")
-    parser.add_target_argument("--board",            default="i5",             help="Board type (i5).")
-    parser.add_target_argument("--revision",         default="7.0",            help="Board revision (7.0).")
+    parser = LiteXArgumentParser(platform=colorlight_i5.Platform, description="LiteX SoC on Colorlight I9.")
+    parser.add_target_argument("--board",            default="i9",             help="Board type (i9).")
+    parser.add_target_argument("--revision",         default="7.2",            help="Board revision (7.2).")
     parser.add_target_argument("--sys-clk-freq",     default=60e6, type=float, help="System clock frequency.")
     # This argument is 0x200000 + (address in flash of firmware image to boot from LiteX BIOS)
     parser.add_target_argument("--flash-boot",       default=0x3E0000, type=lambda x: int(x,0), help="Flash boot address.")
