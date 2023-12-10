@@ -277,23 +277,30 @@ impl State {
             touch_concat[8..16].copy_from_slice(&touch2);
             touch_concat[16..24].copy_from_slice(&touch1);
 
-            // Create a vector of tuples where each tuple consists of the index and value.
-            let mut touch: Vec<(usize, u8), 24> = touch_concat.iter().enumerate().map(|(i, &item)| (i, item)).collect();
-            touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-            let mut top4_by_pitch: Vec<(usize, u8), 4> = Vec::from_slice(&touch[0..4]).unwrap();
-            top4_by_pitch.sort_unstable_by(|a, b| b.0.cmp(&a.0));
-
             let minor_map: [usize; 24] =  [
-                   0,    2,    3,    5,    7,    8,    10, 12,
-                  12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 24,
-                  24, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 36,
+                   0,    2,    3,    5,    7,    8,    10, 13,
+                  12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 25,
+                  24, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 37,
             ];
 
-            for n_voice in 0..N_VOICES {
-                let ampl = (top4_by_pitch[n_voice].1 as f32) / 256.0f32;
-                let note = (minor_map[top4_by_pitch[n_voice].0] + 36) as u8;
-                let pitch = note_to_pitch(note);
+            let index_to_note = |idx| (minor_map[idx] + 36) as u8;
+
+            // Create a vector of tuples where each tuple consists of the note and ampl_raw.
+            let mut touch: Vec<(u8, u8), 24> =
+                touch_concat.iter().enumerate()
+                .map(|(idx, &touch_raw)| (index_to_note(idx), touch_raw))
+                .filter(|(_note, touch_raw)| *touch_raw > 0)
+                .collect();
+            touch.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+
+            let voices_old = self.voice_manager.voices.clone();
+
+            let mut update_hw_voice = |n_voice: usize, midi_note: u8, touch_raw: u8| {
+                let ampl = (touch_raw as f32) / 256.0f32;
+                let pitch = note_to_pitch(midi_note);
                 shifter[n_voice].set_pitch(pitch);
+
+                // Low-pass filter to smooth touch on/off
                 let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
                 let ampl_new = ampl*0.05 + ampl_old*0.95;
                 lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
@@ -301,9 +308,47 @@ impl State {
 
                 // Push to voice manager to visualizations work
                 self.voice_manager.voices[n_voice].amplitude = ampl_new;
-                self.voice_manager.voices[n_voice].note = note;
+                self.voice_manager.voices[n_voice].note = midi_note;
                 self.voice_manager.voices[n_voice].state = VoiceState::Sustain;
+
+                if touch_raw == 0 {
+                    self.voice_manager.voices[n_voice].state = VoiceState::Idle;
+                }
+            };
+
+            let mut updated_voices: Vec<usize, N_VOICES> = Vec::new();
+            let mut remaining_touches: Vec<(u8, u8), N_VOICES> = Vec::new();
+            for (note, touch_raw) in touch.iter().take(N_VOICES) {
+                let mut updated = false;
+                for n_voice in 0..N_VOICES {
+                    if *note == voices_old[n_voice].note {
+                        update_hw_voice(n_voice, *note, *touch_raw);
+                        updated_voices.push(n_voice).unwrap();
+                        updated = true;
+                        break;
+                    }
+                }
+                if !updated {
+                    remaining_touches.push((*note, *touch_raw)).unwrap();
+                }
             }
+
+            for (note, touch_raw) in remaining_touches.iter() {
+                for n_voice in 0..N_VOICES {
+                    if !updated_voices.contains(&n_voice) {
+                        update_hw_voice(n_voice, *note, *touch_raw);
+                        updated_voices.push(n_voice).unwrap();
+                        break;
+                    }
+                }
+            }
+
+            for n_voice in 0..N_VOICES {
+                if !updated_voices.contains(&n_voice) {
+                    update_hw_voice(n_voice, voices_old[n_voice].note, 0);
+                }
+            }
+
         }
 
         self.last_control_type = Some(opts.touch.note_control.value);
