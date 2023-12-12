@@ -400,7 +400,7 @@ class PitchShift(Module):
         )
 
 class MultiPitchShifter(Module):
-    def __init__(self, n_shifters=2, max_delay=512, xfade=64, sw=16, dw=32):
+    def __init__(self, n_shifters=2, max_delay=2048, xfade=256, sw=16, dw=32):
 
         # Instantiate shared delay line & MAC, and the shifters themselves
         self.submodules.rrdelayln = RRMux(n=n_shifters, inner=DelayLine(max_delay=max_delay), latency=1)
@@ -422,7 +422,7 @@ class MultiPitchShifter(Module):
         self.comb += [shifter.sample_strobe.eq(self.sink.valid) for shifter in self.shifters]
 
 class PitchShifterDecorator(Module, AutoCSR):
-    def __init__(self, shifter, dw=32, ww=16, default_window_size=256):
+    def __init__(self, shifter, dw=32, ww=16, default_window_size=1024):
 
         # Create some CSRs and link them to the provided (sub) shifter.
         self.csr_pitch = CSRStorage(dw, reset=Constant(float_to_fp(0.5), (32, True)))
@@ -496,13 +496,13 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     )
     soc.add_module("cdc_vout0", cdc_vout0)
 
-    outputs_valids = [b.source.valid for b in multi_lpf.dc_blocks]
+    outputs_valids = [b.source.valid for b in multi_shift.shifters]
     soc.comb += cdc_vout0.sink.valid.eq(reduce(lambda x, y: x & y, outputs_valids))
 
     # Route DC block outputs to CDC entry
     for n in range(n_voices):
-        soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_lpf.dc_blocks[n].source.sample)
-        soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.valid)
+        soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_shift.shifters[n].source.sample)
+        soc.comb += multi_shift.shifters[n].source.ready.eq(cdc_vout0.sink.valid)
 
     # Route CDC exit to eurorack-pmod
     soc.comb += cdc_vout0.source.ready.eq(1),
