@@ -6,6 +6,7 @@ from migen import *
 from litex.gen.fhdl import verilog
 from litex.gen.sim import *
 from litex.soc.interconnect.stream import *
+from litex.soc.interconnect.csr import *
 
 from functools import reduce
 
@@ -427,11 +428,11 @@ class MultiPitchShifter(Module):
         self.comb += [shifter.sample_strobe.eq(self.sink.valid) for shifter in self.shifters]
 
 class PitchShifterDecorator(Module, AutoCSR):
-    def __init__(self, shifter, dw=32, ww=16):
+    def __init__(self, shifter, dw=32, ww=16, default_window_size=256):
 
         # Create some CSRs and link them to the provided (sub) shifter.
-        self.csr_pitch = CSRStorage(dw)
-        self.csr_window_sz = CSRStorage(ww)
+        self.csr_pitch = CSRStorage(dw, reset=Constant(float_to_fp(0.5), (32, True)))
+        self.csr_window_sz = CSRStorage(ww, reset=default_window_size)
         self.comb += [
             shifter.pitch.eq(self.csr_pitch.storage),
             shifter.window_sz.eq(self.csr_window_sz.storage),
@@ -440,25 +441,22 @@ class PitchShifterDecorator(Module, AutoCSR):
 class MultiDcBlockedLpf(Module):
     def __init__(self, n_lpfs=2):
 
-        self.sources = []
-        self.sinks = []
-        self.dc_blocks = []
         self.lpfs = []
+        self.dc_blocks = []
 
         self.submodules.rrmac = RRMux(n=n_lpfs*2, inner=FixMac())
         for ix in range(n_lpfs):
-            self.dc_blocks.append(DcBlock(mac=self.rrmac))
             self.lpfs.append(LadderLpf(mac=self.rrmac))
-            setattr(self.submodules, 'dc'+str(ix), self.dc_blocks[-1])
+            self.dc_blocks.append(DcBlock(mac=self.rrmac))
             setattr(self.submodules, 'lpf'+str(ix), self.lpfs[-1])
-
+            setattr(self.submodules, 'dc'+str(ix), self.dc_blocks[-1])
             # Route the LPF --> the DC block.
-            self.comb += self.lpfs[-1].connect(self.dc_blocks[-1].sink)
+            self.comb += self.lpfs[-1].source.connect(self.dc_blocks[-1].sink)
 
 class LpfDecorator(Module, AutoCSR):
-    def __init__(self, lpf, dw=32, ww=16):
-        self.csr_g = CSRStorage((dw, True))
-        self.csr_resonance = CSRStorage((dw, True))
+    def __init__(self, lpf, dw=32):
+        self.csr_g = CSRStorage(dw, reset=Constant(float_to_fp(1.0), (32, True)))
+        self.csr_resonance = CSRStorage(dw, reset=Constant(float_to_fp(0.0), (32, True)))
         self.comb += [
                 lpf.g.eq(self.csr_g.storage),
                 lpf.resonance.eq(self.csr_resonance.storage),
@@ -470,56 +468,52 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     multi_shift = MultiPitchShifter(n_shifters=n_voices)
     multi_lpf = MultiDcBlockedLpf(n_lpfs=n_voices)
 
+    soc.comb += [multi_shift.sources[n].connect(multi_lpf.lpfs[n].sink) for n in range(n_voices)]
+
     soc.add_module("multi_shift0", multi_shift);
     soc.add_module("multi_lpf0", multi_lpf);
 
     for n in range(n_voices):
         shifter_csr = PitchShifterDecorator(multi_shift.shifters[n])
-        soc.add_module(shifter_csr, f'pitch_shift{n}')
+        soc.add_module(f'pitch_shift{n}', shifter_csr)
         lpf_csr = LpfDecorator(multi_lpf.lpfs[n])
-        soc.add_module(lpf_csr, f'karlsen_lpf{n}')
+        soc.add_module(f'karlsen_lpf{n}', lpf_csr)
 
     # CDC: PMOD -> shifter delayline write
 
-    cdc_in0 = ClockDomainCrossing(
-            layout=[("sample_in", 16)],
+    cdc_vin0 = ClockDomainCrossing(
+            layout=[("sample", 16)],
             cd_from="clk_fs",
             cd_to="sys"
     )
-    soc.add_module("cdc_voice_in0", cdc_in0)
+    soc.add_module("cdc_voice_in0", cdc_vin0)
     soc.comb += [
-        cdc_in0.sink.valid.eq(1),
-        cdc_in0.sink.sample_in.eq(eurorack_pmod.cal_in0),
-        cdc_in0.source.connect(multi_shift.sink),
+        cdc_vin0.sink.valid.eq(1),
+        cdc_vin0.sink.sample.eq(eurorack_pmod.cal_in0),
+        cdc_vin0.source.connect(multi_shift.sink),
     ]
 
     # CDC: DcBlock out -> PMOD channels
 
-    cdc_out0 = ClockDomainCrossing(
-            layout=[("out0", 16),
-                    ("out1", 16),
-                    ("out2", 16),
-                    ("out3", 16)],
+    cdc_vout0 = ClockDomainCrossing(
+            layout=[(f"out{n}", 16) for n in range(n_voices)],
             cd_from="sys",
             cd_to="clk_fs"
     )
-    soc.add_module("cdc_out0", cdc_out0)
+    soc.add_module("cdc_vout0", cdc_vout0)
 
     outputs_valids = [b.source.valid for b in multi_lpf.dc_blocks]
-    soc.comb += cdc_out0.sink.valid.eq(reduce(lambda x, y: x & y, outputs_valids))
+    soc.comb += cdc_vout0.sink.valid.eq(reduce(lambda x, y: x & y, outputs_valids))
 
     # Route DC block outputs to CDC entry
     for n in range(n_voices):
-        soc.comb += cdc_out0.sink.out0.eq(multi_lpf.dc_blocks[n].source)
+        soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_lpf.dc_blocks[n].source.sample)
+        soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.ready)
 
     # Route CDC exit to eurorack-pmod
-    soc.comb += [
-        cdc_out0.source.ready.eq(1),
-        eurorack_pmod.cal_out0.eq(cdc_out0.source.out0),
-        eurorack_pmod.cal_out1.eq(cdc_out0.source.out1),
-        eurorack_pmod.cal_out2.eq(cdc_out0.source.out2),
-        eurorack_pmod.cal_out3.eq(cdc_out0.source.out3),
-    ]
+    soc.comb += cdc_vout0.source.ready.eq(1),
+    for n in range(n_voices):
+        soc.comb += getattr(eurorack_pmod, f"cal_out{n}").eq(getattr(cdc_vout0.source, f"out{n}"))
 
 class TestDSP(unittest.TestCase):
     def test_fixmac(self):

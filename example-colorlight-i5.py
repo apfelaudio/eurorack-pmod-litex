@@ -24,6 +24,7 @@ from rtl.eurorack_pmod_wrapper import *
 from rtl.dsp_wrapper import *
 from rtl.spi_dma import Wishbone2SPIDMA
 from rtl.dma_router import *
+from rtl.dsp import create_voices
 
 _io_eurolut_proto1 = [
     ("eurorack_pmod_clk0", 0,
@@ -122,21 +123,7 @@ def into_shifter(soc, eurorack_pmod):
 
     N_VOICES = 4
 
-    for voice in range(N_VOICES):
-        pitch_shift = PitchShift(soc.platform)
-        lpf = KarlsenLowPass(soc.platform)
-        dc_block = DcBlock(soc.platform)
-
-        soc.comb += [
-            pitch_shift.sample_in.eq(eurorack_pmod.cal_in0),
-            lpf.sample_in.eq(pitch_shift.sample_out),
-            dc_block.sample_in.eq(lpf.sample_out),
-            getattr(eurorack_pmod, f"cal_out{voice}").eq(dc_block.sample_out),
-        ]
-
-        soc.add_module(f"pitch_shift{voice}", pitch_shift)
-        soc.add_module(f"karlsen_lpf{voice}", lpf)
-        soc.add_module(f"dc_block{voice}", dc_block)
+    create_voices(soc, eurorack_pmod, N_VOICES)
 
     add_dma_router(soc, eurorack_pmod, output_capable=False)
 

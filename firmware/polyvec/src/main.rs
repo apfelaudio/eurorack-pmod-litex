@@ -17,6 +17,7 @@ use core::cell::RefCell;
 use critical_section::Mutex;
 use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
+use fixed::{FixedI32, types::extra::U16};
 
 use ssd1322 as oled;
 
@@ -252,6 +253,7 @@ impl State {
             }
         }
 
+        /*
         if opts.touch.note_control.value == opt::NoteControl::Midi {
             while let Ok(event) = self.midi_in.read() {
                 self.voice_manager.event(event, uptime_ms);
@@ -264,6 +266,7 @@ impl State {
                 lpf[n_voice].set_resonance(opts.adsr.resonance.value);
             }
         } else {
+        */
             let pmod1 = &peripherals.EURORACK_PMOD1;
             let pmod2 = &peripherals.EURORACK_PMOD2;
             let pmod3 = &peripherals.EURORACK_PMOD3;
@@ -298,13 +301,14 @@ impl State {
             let mut update_hw_voice = |n_voice: usize, midi_note: u8, touch_raw: u8| {
                 let ampl = (touch_raw as f32) / 256.0f32;
                 let pitch = note_to_pitch(midi_note);
-                shifter[n_voice].set_pitch(pitch);
+                //shifter[n_voice].set_pitch(pitch);
+                shifter[n_voice].set_pitch(FixedI32::<U16>::from_num(0.0f32));
 
                 // Low-pass filter to smooth touch on/off
-                let ampl_old = (lpf[n_voice].cutoff() as f32) / 8000f32;
+                let ampl_old: f32 = lpf[n_voice].cutoff().to_num();
                 let ampl_new = ampl*0.05 + ampl_old*0.95;
-                lpf[n_voice].set_cutoff((ampl_new * 8000f32) as i16);
-                lpf[n_voice].set_resonance(opts.adsr.resonance.value);
+                lpf[n_voice].set_cutoff(FixedI32::<U16>::from_num(ampl_new));
+                lpf[n_voice].set_resonance(FixedI32::<U16>::from_num(0));
 
                 // Push to voice manager to visualizations work
                 self.voice_manager.voices[n_voice].amplitude = ampl_new;
@@ -349,7 +353,9 @@ impl State {
                 }
             }
 
+            /*
         }
+            */
 
         self.last_control_type = Some(opts.touch.note_control.value);
     }

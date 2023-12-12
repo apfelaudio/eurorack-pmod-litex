@@ -1,5 +1,7 @@
 #![allow(unused_macros)]
 
+use fixed::{FixedI32, types::extra::U16};
+
 use litex_hal::prelude::*;
 use litex_pac as pac;
 use litex_hal::uart::UartError;
@@ -25,14 +27,14 @@ pub trait WavetableOscillator {
 }
 
 pub trait PitchShift {
-    fn set_pitch(&self, value: i16);
-    fn pitch(&self) -> i16;
+    fn set_pitch(&self, value: FixedI32<U16>);
+    fn pitch(&self) -> FixedI32<U16>;
 }
 
 pub trait KarlsenLpf {
-    fn set_cutoff(&self, value: i16);
-    fn cutoff(&self) -> i16;
-    fn set_resonance(&self, value: i16);
+    fn set_cutoff(&self, value: FixedI32<U16>);
+    fn cutoff(&self) -> FixedI32<U16>;
+    fn set_resonance(&self, value: FixedI32<U16>);
 }
 
 macro_rules! eurorack_pmod_reset {
@@ -119,28 +121,16 @@ macro_rules! eurorack_pmod {
 }
 
 
-macro_rules! wavetable_oscillator {
-    ($($t:ty),+ $(,)?) => {
-        $(impl WavetableOscillator for $t {
-            fn set_skip(&self, value: u32) {
-                unsafe {
-                    self.csr_wavetable_inc().write(|w| w.csr_wavetable_inc().bits(value));
-                }
-            }
-        })+
-    };
-}
-
 macro_rules! pitch_shift {
     ($($t:ty),+ $(,)?) => {
         $(impl PitchShift for $t {
-            fn set_pitch(&self, value: i16) {
+            fn set_pitch(&self, value: FixedI32<U16>) {
                 unsafe {
-                    self.csr_pitch().write(|w| w.csr_pitch().bits(value as u16));
+                    self.csr_pitch().write(|w| w.csr_pitch().bits(value.to_bits() as u32));
                 }
             }
-            fn pitch(&self) -> i16 {
-                (self.csr_pitch().read().bits() as u16) as i16
+            fn pitch(&self) -> FixedI32<U16> {
+                FixedI32::<U16>::from_bits(self.csr_pitch().read().bits() as i32)
             }
         })+
     };
@@ -149,17 +139,17 @@ macro_rules! pitch_shift {
 macro_rules! karlsen_lpf {
     ($($t:ty),+ $(,)?) => {
         $(impl KarlsenLpf for $t {
-            fn set_cutoff(&self, value: i16) {
+            fn set_cutoff(&self, value: FixedI32<U16>) {
                 unsafe {
-                    self.csr_g().write(|w| w.csr_g().bits(value as u16));
+                    self.csr_g().write(|w| w.csr_g().bits(value.to_bits() as u32));
                 }
             }
-            fn cutoff(&self) -> i16 {
-                (self.csr_g().read().bits() as u16) as i16
+            fn cutoff(&self) -> FixedI32<U16> {
+                FixedI32::<U16>::from_bits(self.csr_g().read().bits() as i32)
             }
-            fn set_resonance(&self, value: i16) {
+            fn set_resonance(&self, value: FixedI32<U16>) {
                 unsafe {
-                    self.csr_resonance().write(|w| w.csr_resonance().bits(value as u16));
+                    self.csr_resonance().write(|w| w.csr_resonance().bits(value.to_bits() as u32));
                 }
             }
         })+

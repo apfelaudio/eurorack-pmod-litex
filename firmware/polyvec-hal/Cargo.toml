@@ -17,6 +17,7 @@ paste = "1.0.14"
 riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
 riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
 vexriscv = "0.0.3"
+fixed = "1.24.0"
 
 [profile.release]
 lto = true
