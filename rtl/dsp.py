@@ -146,7 +146,7 @@ class LadderLpf(Module):
 
         # Saturation thresholds
         SAT_HI = Constant(float_to_fp(1.0), dtype)
-        SAT_LO = -Constant(float_to_fp(1.0), dtype)
+        SAT_LO = Constant(-float_to_fp(1.0), dtype)
 
         fsm = FSM(reset_state="WAIT-SINK-VALID")
         self.submodules += fsm
@@ -178,13 +178,7 @@ class LadderLpf(Module):
         fsm_mac("MAC-RESONANCE", "SATURATION",
                 self.x - self.y, self.resonance, self.x, self.rezz)
         fsm.act("SATURATION",
-            If(self.rezz > SAT_HI,
-                NextValue(self.sat, SAT_HI),
-            ).Elif(self.rezz < SAT_LO,
-                NextValue(self.sat, SAT_LO),
-            ).Else(
-                NextValue(self.sat, self.rezz),
-            ),
+            NextValue(self.sat, self.rezz),
             NextState("MAC-LADDER0"),
         )
         fsm_mac("MAC-LADDER0", "MAC-LADDER1",
@@ -508,7 +502,7 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     # Route DC block outputs to CDC entry
     for n in range(n_voices):
         soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_lpf.dc_blocks[n].source.sample)
-        soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.ready)
+        soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.valid)
 
     # Route CDC exit to eurorack-pmod
     soc.comb += cdc_vout0.source.ready.eq(1),

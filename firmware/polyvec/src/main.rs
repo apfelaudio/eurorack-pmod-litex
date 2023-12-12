@@ -267,6 +267,7 @@ impl State {
             }
         } else {
         */
+        /*
             let pmod1 = &peripherals.EURORACK_PMOD1;
             let pmod2 = &peripherals.EURORACK_PMOD2;
             let pmod3 = &peripherals.EURORACK_PMOD3;
@@ -353,6 +354,7 @@ impl State {
                 }
             }
 
+            */
             /*
         }
             */

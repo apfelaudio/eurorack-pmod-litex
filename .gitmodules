@@ -76,3 +76,9 @@
 [submodule "firmware/deps/ssd1322"]
 	path = firmware/deps/ssd1322
 	url = git@github.com:schnommus/ssd1322.git
+[submodule "deps/litescope"]
+	path = deps/litescope
+	url = https://github.com/enjoy-digital/litescope
+[submodule "deps/pythondata-misc-tapcfg"]
+	path = deps/pythondata-misc-tapcfg
+	url = https://github.com/litex-hub/pythondata-misc-tapcfg.git

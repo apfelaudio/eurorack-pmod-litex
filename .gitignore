@@ -3,3 +3,5 @@ build/
 firmware/deps/generated-litex-pac/src/*
 .aider*
 *.fbi
+*.vcd
+*.sv

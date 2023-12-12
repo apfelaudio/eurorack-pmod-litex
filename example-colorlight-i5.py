@@ -120,11 +120,8 @@ def into_mirror(soc, eurorack_pmod):
     ]
 
 def into_shifter(soc, eurorack_pmod):
-
     N_VOICES = 4
-
     create_voices(soc, eurorack_pmod, N_VOICES)
-
     add_dma_router(soc, eurorack_pmod, output_capable=False)
 
 def add_oled(soc):
