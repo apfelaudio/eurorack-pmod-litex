@@ -279,13 +279,13 @@ impl State {
             touch_concat[8..16].copy_from_slice(&touch2);
             touch_concat[16..24].copy_from_slice(&touch1);
 
-            let minor_map: [usize; 24] =  [
+            let minor_map: [i8; 24] =  [
+                 -12,-12+2,-12+3,-12+5,-12+7,-12+8,-12+10, -1,
                    0,    2,    3,    5,    7,    8,    10, 13,
                   12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 25,
-                  24, 24+2, 24+3, 24+5, 24+7, 24+8, 24+10, 37,
             ];
 
-            let index_to_note = |idx| (minor_map[idx] + 36) as u8;
+            let index_to_note = |idx| (minor_map[idx] + 60) as u8;
 
             // Create a vector of tuples where each tuple consists of the note and ampl_raw.
             let mut touch: Vec<(u8, u8), 24> =

@@ -169,10 +169,10 @@ impl Options {
                 selected: None,
                 grain_sz: NumOption{
                     name: "grainsz".into(),
-                    value: 1023,
+                    value: 1000,
                     step: 1,
                     min: 512,
-                    max: 1023,
+                    max: 1000,
                 },
                 trig_lvl: NumOption{
                     name: "trig lvl".into(),

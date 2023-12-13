@@ -235,6 +235,11 @@ where
             .stroke_width(1)
             .build();
 
+        // Draw grainsz window
+        Rectangle::new(Point::new(1, 10), Size::new(opts.scope.grain_sz.value/8, 53))
+            .into_styled(stroke_grid)
+            .draw(d)?;
+
         Line::new(Point::new(1, 32+yn),
                   Point::new(124, 32+yn))
                   .into_styled(stroke_grid)
@@ -272,6 +277,7 @@ where
         Polyline::new(&points)
             .into_styled(thin_stroke)
             .draw(d)?;
+
     }
 
     if opts.screen.value == opt::Screen::Touch {
