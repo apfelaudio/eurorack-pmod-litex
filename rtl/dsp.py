@@ -478,7 +478,9 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     cdc_vin0 = ClockDomainCrossing(
             layout=[("sample", 16)],
             cd_from="clk_fs",
-            cd_to="sys"
+            cd_to="sys",
+            buffered=True,
+            with_common_rst=True,
     )
     soc.add_module("cdc_voice_in0", cdc_vin0)
     soc.comb += [
@@ -492,17 +494,20 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     cdc_vout0 = ClockDomainCrossing(
             layout=[(f"out{n}", 16) for n in range(n_voices)],
             cd_from="sys",
-            cd_to="clk_fs"
+            cd_to="clk_fs",
+            buffered=True,
+            with_common_rst=True,
     )
     soc.add_module("cdc_vout0", cdc_vout0)
 
-    outputs_valids = [b.source.valid for b in multi_shift.shifters]
+    outputs_valids = [b.source.valid for b in multi_lpf.dc_blocks]
     soc.comb += cdc_vout0.sink.valid.eq(reduce(lambda x, y: x & y, outputs_valids))
 
     # Route DC block outputs to CDC entry
     for n in range(n_voices):
-        soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_shift.shifters[n].source.sample)
-        soc.comb += multi_shift.shifters[n].source.ready.eq(cdc_vout0.sink.valid)
+        soc.comb += getattr(cdc_vout0.sink.payload, f"out{n}").eq(multi_lpf.dc_blocks[n].source.sample)
+        # Only transfer when sink.valid (all dc_blocks outputs_valid) and sink.ready.
+        soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.valid & cdc_vout0.sink.ready)
 
     # Route CDC exit to eurorack-pmod
     soc.comb += cdc_vout0.source.ready.eq(1),
