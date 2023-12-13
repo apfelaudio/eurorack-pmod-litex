@@ -267,7 +267,6 @@ impl State {
             }
         } else {
         */
-        /*
             let pmod1 = &peripherals.EURORACK_PMOD1;
             let pmod2 = &peripherals.EURORACK_PMOD2;
             let pmod3 = &peripherals.EURORACK_PMOD3;
@@ -302,8 +301,7 @@ impl State {
             let mut update_hw_voice = |n_voice: usize, midi_note: u8, touch_raw: u8| {
                 let ampl = (touch_raw as f32) / 256.0f32;
                 let pitch = note_to_pitch(midi_note);
-                //shifter[n_voice].set_pitch(pitch);
-                shifter[n_voice].set_pitch(FixedI32::<U16>::from_num(0.0f32));
+                shifter[n_voice].set_pitch(FixedI32::<U16>::from_num(pitch));
 
                 // Low-pass filter to smooth touch on/off
                 let ampl_old: f32 = lpf[n_voice].cutoff().to_num();
@@ -353,8 +351,6 @@ impl State {
                     update_hw_voice(n_voice, voices_old[n_voice].note, 0);
                 }
             }
-
-            */
             /*
         }
             */

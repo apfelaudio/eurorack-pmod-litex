@@ -29,7 +29,7 @@ pub struct Voice {
     pub note: u8,
     pub start_time_ms: u32,
     pub state: VoiceState,
-    pub pitch: i16,
+    pub pitch: f32,
     pub amplitude: f32,
     pub velocity: u8,
     pub adsr: Option<AdsrParams>,
@@ -75,9 +75,9 @@ impl VoiceManager {
     }
 }
 
-pub fn note_to_pitch(note: u8) -> i16 {
+pub fn note_to_pitch(note: u8) -> f32 {
     let scale = 2.0f32.powf(((note as i16) - 60) as f32 / 12.0f32);
-    ((1.0f32 - scale) * 32768.0f32) as i16
+    1.0f32 - scale
 }
 
 
