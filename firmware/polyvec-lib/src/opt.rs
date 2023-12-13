@@ -70,7 +70,7 @@ pub struct AdsrOptions {
 #[derive(Clone)]
 pub struct ScopeOptions {
     pub selected: Option<usize>,
-    pub delay_len: NumOption<u32>,
+    pub grain_sz: NumOption<u32>,
     pub trig_lvl: NumOption<i32>,
     pub trig_sns: NumOption<i32>,
 }
@@ -110,7 +110,7 @@ impl_option_view!(AdsrOptions,
                   attack_ms, decay_ms, release_ms, resonance);
 
 impl_option_view!(ScopeOptions,
-                  delay_len, trig_lvl, trig_sns);
+                  grain_sz, trig_lvl, trig_sns);
 
 impl_option_view!(TouchOptions,
                   note_control, led_mirror);
@@ -167,12 +167,12 @@ impl Options {
             },
             scope: ScopeOptions {
                 selected: None,
-                delay_len: NumOption{
-                    name: "delayln".into(),
-                    value: 511,
+                grain_sz: NumOption{
+                    name: "grainsz".into(),
+                    value: 1023,
                     step: 1,
-                    min: 128,
-                    max: 511,
+                    min: 512,
+                    max: 1023,
                 },
                 trig_lvl: NumOption{
                     name: "trig lvl".into(),

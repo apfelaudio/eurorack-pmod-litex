@@ -253,7 +253,6 @@ impl State {
             }
         }
 
-        /*
         if opts.touch.note_control.value == opt::NoteControl::Midi {
             while let Ok(event) = self.midi_in.read() {
                 self.voice_manager.event(event, uptime_ms);
@@ -261,12 +260,12 @@ impl State {
             self.voice_manager.tick(uptime_ms, opts);
             for n_voice in 0..N_VOICES {
                 let voice = &self.voice_manager.voices[n_voice];
-                shifter[n_voice].set_pitch(voice.pitch);
-                lpf[n_voice].set_cutoff((voice.amplitude * 8000f32) as i16);
-                lpf[n_voice].set_resonance(opts.adsr.resonance.value);
+                shifter[n_voice].set_pitch(FixedI32::<U16>::from_num(voice.pitch));
+                shifter[n_voice].set_window_sz(opts.scope.grain_sz.value as u16);
+                lpf[n_voice].set_cutoff(FixedI32::<U16>::from_num(voice.amplitude));
+                lpf[n_voice].set_resonance(FixedI32::<U16>::from_num(0));
             }
         } else {
-        */
             let pmod1 = &peripherals.EURORACK_PMOD1;
             let pmod2 = &peripherals.EURORACK_PMOD2;
             let pmod3 = &peripherals.EURORACK_PMOD3;
@@ -302,6 +301,7 @@ impl State {
                 let ampl = (touch_raw as f32) / 256.0f32;
                 let pitch = note_to_pitch(midi_note);
                 shifter[n_voice].set_pitch(FixedI32::<U16>::from_num(pitch));
+                shifter[n_voice].set_window_sz(opts.scope.grain_sz.value as u16);
 
                 // Low-pass filter to smooth touch on/off
                 let ampl_old: f32 = lpf[n_voice].cutoff().to_num();
@@ -351,9 +351,7 @@ impl State {
                     update_hw_voice(n_voice, voices_old[n_voice].note, 0);
                 }
             }
-            /*
         }
-            */
 
         self.last_control_type = Some(opts.touch.note_control.value);
     }

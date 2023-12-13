@@ -29,6 +29,7 @@ pub trait WavetableOscillator {
 pub trait PitchShift {
     fn set_pitch(&self, value: FixedI32<U16>);
     fn pitch(&self) -> FixedI32<U16>;
+    fn set_window_sz(&self, value: u16);
 }
 
 pub trait KarlsenLpf {
@@ -131,6 +132,11 @@ macro_rules! pitch_shift {
             }
             fn pitch(&self) -> FixedI32<U16> {
                 FixedI32::<U16>::from_bits(self.csr_pitch().read().bits() as i32)
+            }
+            fn set_window_sz(&self, value: u16) {
+                unsafe {
+                    self.csr_window_sz().write(|w| w.csr_window_sz().bits(value));
+                }
             }
         })+
     };

@@ -447,7 +447,7 @@ class MultiDcBlockedLpf(Module):
 
 class LpfDecorator(Module, AutoCSR):
     def __init__(self, lpf, dw=32):
-        self.csr_g = CSRStorage(dw, reset=Constant(float_to_fp(1.0), (32, True)))
+        self.csr_g = CSRStorage(dw, reset=Constant(float_to_fp(0.0), (32, True)))
         self.csr_resonance = CSRStorage(dw, reset=Constant(float_to_fp(0.0), (32, True)))
         self.comb += [
                 lpf.g.eq(self.csr_g.storage),
