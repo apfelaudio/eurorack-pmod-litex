@@ -171,10 +171,18 @@ pitch_shift!(pac::PITCH_SHIFT0);
 pitch_shift!(pac::PITCH_SHIFT1);
 pitch_shift!(pac::PITCH_SHIFT2);
 pitch_shift!(pac::PITCH_SHIFT3);
+pitch_shift!(pac::PITCH_SHIFT4);
+pitch_shift!(pac::PITCH_SHIFT5);
+pitch_shift!(pac::PITCH_SHIFT6);
+pitch_shift!(pac::PITCH_SHIFT7);
 karlsen_lpf!(pac::KARLSEN_LPF0);
 karlsen_lpf!(pac::KARLSEN_LPF1);
 karlsen_lpf!(pac::KARLSEN_LPF2);
 karlsen_lpf!(pac::KARLSEN_LPF3);
+karlsen_lpf!(pac::KARLSEN_LPF4);
+karlsen_lpf!(pac::KARLSEN_LPF5);
+karlsen_lpf!(pac::KARLSEN_LPF6);
+karlsen_lpf!(pac::KARLSEN_LPF7);
 
 litex_hal::uart! {
     UartMidi: litex_pac::UART_MIDI,
@@ -192,21 +200,29 @@ litex_hal::spi! {
     OledSpi: (litex_pac::OLED_SPI, u8),
 }
 
-pub fn get_shifters(p: &pac::Peripherals) -> [&dyn PitchShift; 4] {
+pub fn get_shifters(p: &pac::Peripherals) -> [&dyn PitchShift; 8] {
     [
         &p.PITCH_SHIFT0,
         &p.PITCH_SHIFT1,
         &p.PITCH_SHIFT2,
         &p.PITCH_SHIFT3,
+        &p.PITCH_SHIFT4,
+        &p.PITCH_SHIFT5,
+        &p.PITCH_SHIFT6,
+        &p.PITCH_SHIFT7,
     ]
 }
 
-pub fn get_lpfs(p: &pac::Peripherals) -> [&dyn KarlsenLpf; 4] {
+pub fn get_lpfs(p: &pac::Peripherals) -> [&dyn KarlsenLpf; 8] {
     [
         &p.KARLSEN_LPF0,
         &p.KARLSEN_LPF1,
         &p.KARLSEN_LPF2,
         &p.KARLSEN_LPF3,
+        &p.KARLSEN_LPF4,
+        &p.KARLSEN_LPF5,
+        &p.KARLSEN_LPF6,
+        &p.KARLSEN_LPF7,
     ]
 }
 

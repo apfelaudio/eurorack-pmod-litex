@@ -120,8 +120,23 @@ def into_mirror(soc, eurorack_pmod):
     ]
 
 def into_shifter(soc, eurorack_pmod):
-    N_VOICES = 4
-    create_voices(soc, eurorack_pmod, N_VOICES)
+    N_VOICES = 8
+
+    create_voices(soc, eurorack_pmod, n_voices=4, start=0, prefix="group0")
+    create_voices(soc, eurorack_pmod, n_voices=4, start=4, prefix="group1")
+
+    # Hacky 8 -> stereo
+    soc.sync.clk_fs += [
+            eurorack_pmod.cal_out2.eq((soc.group0cdc_vout0.source.out0 >> 2) +
+                                      (soc.group0cdc_vout0.source.out2 >> 2) +
+                                      (soc.group1cdc_vout0.source.out0 >> 2) +
+                                      (soc.group1cdc_vout0.source.out2 >> 2)),
+            eurorack_pmod.cal_out3.eq((soc.group0cdc_vout0.source.out1 >> 2) +
+                                      (soc.group0cdc_vout0.source.out3 >> 2) +
+                                      (soc.group1cdc_vout0.source.out1 >> 2) +
+                                      (soc.group1cdc_vout0.source.out3 >> 2)),
+    ]
+
     add_dma_router(soc, eurorack_pmod, output_capable=False)
 
 def add_oled(soc):
@@ -248,7 +263,7 @@ def main():
 
     add_programn_gpio(soc)
 
-    add_usb(soc)
+    #add_usb(soc)
 
     add_audio_clocks(soc)
 

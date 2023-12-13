@@ -4,7 +4,7 @@ use ufmt::derive::uDebug;
 
 use crate::opt::Options;
 
-pub const N_VOICES: usize = 4;
+pub const N_VOICES: usize = 8;
 
 #[derive(Copy, Clone, Debug, PartialEq, uDebug)]
 pub enum VoiceState {
@@ -66,6 +66,10 @@ impl VoiceManager {
     pub fn new() -> VoiceManager {
         VoiceManager {
             voices: [
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
+                Voice::new(0, 0, VoiceState::Idle, 0),
                 Voice::new(0, 0, VoiceState::Idle, 0),
                 Voice::new(0, 0, VoiceState::Idle, 0),
                 Voice::new(0, 0, VoiceState::Idle, 0),

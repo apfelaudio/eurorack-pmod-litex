@@ -217,7 +217,7 @@ where
     if opts.screen.value == opt::Screen::Adsr {
 
         for (n_voice, voice) in voices.iter().enumerate() {
-            draw_voice(d, (32*n_voice) as i32, 0,
+            draw_voice(d, (32*(n_voice % 4)) as i32, 32*(n_voice/4) as u32,
                        n_voice as u32, voice)?;
         }
 

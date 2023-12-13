@@ -29,7 +29,7 @@ use polyvec_hal::gw::*;
 use polyvec_hal::log::*;
 use polyvec_hal::*;
 
-const N_VOICES: usize = 4;
+const N_VOICES: usize = 8;
 const SCOPE_SAMPLES: usize = 128;
 const N_CHANNELS: usize = 4;
 const BUF_SZ_WORDS: usize = 1024;
@@ -281,8 +281,8 @@ impl State {
 
             let minor_map: [i8; 24] =  [
                  -12,-12+2,-12+3,-12+5,-12+7,-12+8,-12+10, -1,
-                   0,    2,    3,    5,    7,    8,    10, 13,
-                  12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 25,
+                   0,    2,    3,    5,    7,    8,    10, 11,
+                  12, 12+2, 12+3, 12+5, 12+7, 12+8, 12+10, 23,
             ];
 
             let index_to_note = |idx| (minor_map[idx] + 60) as u8;

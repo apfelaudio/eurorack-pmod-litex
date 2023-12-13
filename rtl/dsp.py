@@ -455,30 +455,30 @@ class LpfDecorator(Module, AutoCSR):
         ]
 
 
-def create_voices(soc, eurorack_pmod, n_voices=4):
+def create_voices(soc, eurorack_pmod, n_voices, start, prefix):
 
-    multi_shift = MultiPitchShifter(n_shifters=n_voices)
-    multi_lpf = MultiDcBlockedLpf(n_lpfs=n_voices)
+    multi_shift = ClockDomainsRenamer("clk_256fs")(MultiPitchShifter(n_shifters=n_voices))
+    multi_lpf = ClockDomainsRenamer("clk_256fs")(MultiDcBlockedLpf(n_lpfs=n_voices))
 
     soc.comb += [multi_shift.sources[n].connect(multi_lpf.lpfs[n].sink) for n in range(n_voices)]
 
-    soc.add_module("multi_shift0", multi_shift);
-    soc.add_module("multi_lpf0", multi_lpf);
+    soc.add_module(f"{prefix}multi_shift0", multi_shift);
+    soc.add_module(f"{prefix}multi_lpf0", multi_lpf);
 
     for n in range(n_voices):
         shifter_csr = PitchShifterDecorator(multi_shift.shifters[n])
-        soc.add_module(f'pitch_shift{n}', shifter_csr)
+        soc.add_module(f'pitch_shift{n+start}', shifter_csr)
         lpf_csr = LpfDecorator(multi_lpf.lpfs[n])
-        soc.add_module(f'karlsen_lpf{n}', lpf_csr)
+        soc.add_module(f'karlsen_lpf{n+start}', lpf_csr)
 
     # CDC: PMOD -> shifter delayline write
 
     cdc_vin0 = ClockDomainCrossing(
             layout=[("sample", 16)],
             cd_from="clk_fs",
-            cd_to="sys",
+            cd_to="clk_256fs",
     )
-    soc.add_module("cdc_voice_in0", cdc_vin0)
+    soc.add_module(f"{prefix}cdc_voice_in0", cdc_vin0)
     soc.comb += [
         cdc_vin0.sink.valid.eq(1),
         cdc_vin0.sink.sample.eq(eurorack_pmod.cal_in0),
@@ -488,11 +488,11 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
     # CDC: DcBlock out -> PMOD channels
 
     cdc_vout0 = ClockDomainCrossing(
-            layout=[(f"out{n}", 16) for n in range(n_voices)],
-            cd_from="sys",
+            layout=[(f"out{n}", (16, True)) for n in range(n_voices)],
+            cd_from="clk_256fs",
             cd_to="clk_fs",
     )
-    soc.add_module("cdc_vout0", cdc_vout0)
+    soc.add_module(f"{prefix}cdc_vout0", cdc_vout0)
 
     outputs_valids = [b.source.valid for b in multi_lpf.dc_blocks]
     soc.comb += cdc_vout0.sink.valid.eq(reduce(lambda x, y: x & y, outputs_valids))
@@ -503,10 +503,11 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
         # Only transfer when sink.valid (all dc_blocks outputs_valid) and sink.ready.
         soc.comb += multi_lpf.dc_blocks[n].source.ready.eq(cdc_vout0.sink.valid & cdc_vout0.sink.ready)
 
-    # Route CDC exit to eurorack-pmod
     soc.comb += cdc_vout0.source.ready.eq(1),
-    for n in range(n_voices):
-        soc.comb += getattr(eurorack_pmod, f"cal_out{n}").eq(getattr(cdc_vout0.source, f"out{n}"))
+
+    # Route CDC exit to eurorack-pmod
+    #for n in range(n_voices):
+    #    soc.comb += getattr(eurorack_pmod, f"cal_out{n}").eq(getattr(cdc_vout0.source, f"out{n}"))
 
 class TestDSP(unittest.TestCase):
     def test_fixmac(self):
