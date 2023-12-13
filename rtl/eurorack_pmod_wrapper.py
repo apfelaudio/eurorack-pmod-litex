@@ -247,7 +247,7 @@ class EurorackPmod(Module, AutoCSR):
         # Connect CSRs directly to inputs and outputs
 
         if external_reset is None:
-            self.csr_reset = CSRStorage(1)
+            self.csr_reset = CSRStorage(1, reset=0)
             self.comb += [
                     self.rst.eq(self.csr_reset.storage),
             ]

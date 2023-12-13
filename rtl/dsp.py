@@ -119,7 +119,6 @@ class DcBlock(Module):
             self.source.valid.eq(1),
             self.source.payload.sample.eq(self.y_k1),
             If(self.source.ready,
-               NextValue(self.source.valid, 0),
                NextState("WAIT-SINK-VALID"),
             )
         )
@@ -193,7 +192,6 @@ class LadderLpf(Module):
             self.source.valid.eq(1),
             self.source.payload.sample.eq(self.y),
             If(self.source.ready,
-               NextValue(self.source.valid, 0),
                NextState("WAIT-SINK-VALID"),
             )
         )
@@ -479,8 +477,6 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
             layout=[("sample", 16)],
             cd_from="clk_fs",
             cd_to="sys",
-            buffered=True,
-            with_common_rst=True,
     )
     soc.add_module("cdc_voice_in0", cdc_vin0)
     soc.comb += [
@@ -495,8 +491,6 @@ def create_voices(soc, eurorack_pmod, n_voices=4):
             layout=[(f"out{n}", 16) for n in range(n_voices)],
             cd_from="sys",
             cd_to="clk_fs",
-            buffered=True,
-            with_common_rst=True,
     )
     soc.add_module("cdc_vout0", cdc_vout0)
 
