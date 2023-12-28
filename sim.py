@@ -61,7 +61,7 @@ def sim_soc_extension(sim_config, soc):
     soc.add_module("eurorack_pmod0", pmod0)
 
     N_VOICES=4
-    create_voices(soc, pmod0, N_VOICES)
+    create_voices(soc, pmod0, n_voices=N_VOICES, start=0, prefix="group0")
 
     sim_config.add_module("i2s", ["eurorack_pmod0", "eurorack_pmod_clk0"])
 

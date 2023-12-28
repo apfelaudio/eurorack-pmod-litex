@@ -19,7 +19,7 @@ openFPGALoader -b colorlight-i9 -o 0x0E0000 -f bootloader.fbi
 
 # Build the bitstream (provide --flash-boot = 0x800000 (memmapped spi flash) + 0x1E0000 (firmware offset in flash))
 # ecppack-bootaddr set to switch back to bootloader on PROGRAMN
-python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x9E0000 --ecppack-bootaddr 0x000000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --build
+python3 example-colorlight-i5.py --ecppack-compress --flash-boot=0x9E0000 --ecppack-bootaddr 0x000000 --cpu-type vexriscv --cpu-variant imac --csr-svd build/colorlight_i5/csr.svd --uart-baudrate=1000000 --timer-uptime --csr-address-width=15 --build
 # Hold BUTTON while turning on, then flash over DFU device ALT 0
 sudo dfu-util --alt 0 --download build/colorlight_i5/gateware/colorlight_i5.bit
 

@@ -251,6 +251,7 @@ def main():
     parser.add_target_argument("--flash-boot",       default=0x3E0000, type=lambda x: int(x,0), help="Flash boot address.")
     viopts = parser.target_group.add_mutually_exclusive_group()
     args = parser.parse_args()
+    print(args)
 
     soc = BaseSoC(board=args.board, revision=args.revision,
         toolchain              = args.toolchain,

@@ -144,8 +144,7 @@ class LadderLpf(Module):
         self.y          = Signal(dtype)
 
         # Saturation thresholds
-        SAT_HI = Constant(float_to_fp(1.0), dtype)
-        SAT_LO = Constant(-float_to_fp(1.0), dtype)
+        SAT = Constant(2**fbits-1, dtype)
 
         fsm = FSM(reset_state="WAIT-SINK-VALID")
         self.submodules += fsm
@@ -177,7 +176,20 @@ class LadderLpf(Module):
         fsm_mac("MAC-RESONANCE", "SATURATION",
                 self.x - self.y, self.resonance, self.x, self.rezz)
         fsm.act("SATURATION",
-            NextValue(self.sat, self.rezz),
+            # TODO: why can't migen spit out a proper signed comparison here without the hack?
+            If(self.rezz[dw-1] == 0,
+                If(self.rezz >= SAT,
+                    NextValue(self.sat, SAT)
+                ).Else(
+                    NextValue(self.sat, self.rezz)
+                )
+            ).Else(
+                If(self.rezz <= -SAT,
+                    NextValue(self.sat, -SAT)
+                ).Else(
+                    NextValue(self.sat, self.rezz)
+                )
+            ),
             NextState("MAC-LADDER0"),
         )
         fsm_mac("MAC-LADDER0", "MAC-LADDER1",
@@ -624,7 +636,6 @@ class TestDSP(unittest.TestCase):
                     yield
         run_simulation(dut, generator(dut), vcd_name="test_dcblock.vcd")
 
-    """
     def test_ladder_lpf_single(self):
         print()
 
@@ -663,7 +674,6 @@ class TestDSP(unittest.TestCase):
                     sample_out = yield lpf.source.payload.sample
                     print ("out", hex(sample_out), fp_to_float(sample_out))
         run_simulation(dut, generator(dut), vcd_name="test_lpf.vcd")
-        """
 
     def test_delayline(self):
         print()
