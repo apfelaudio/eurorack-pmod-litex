@@ -204,6 +204,7 @@ struct State {
     voice_manager: VoiceManager,
     encoder: Encoder,
     last_control_type: Option<opt::NoteControl>,
+    counter: u32,
 }
 
 impl State {
@@ -214,6 +215,7 @@ impl State {
             voice_manager: VoiceManager::new(),
             encoder,
             last_control_type: None,
+            counter: 0u32,
         }
     }
 
@@ -352,6 +354,12 @@ impl State {
                 }
             }
         }
+
+        // Hacky clock divider + master
+        let pmod0 = &peripherals.EURORACK_PMOD0;
+        pmod0.output(0, if (self.counter & (1 << 5)) != 0 { 4000 } else { 0 });
+        pmod0.output(1, if (self.counter & (1 << 6)) == 0 { 4000 } else { 0 });
+        self.counter += 1;
 
         self.last_control_type = Some(opts.touch.note_control.value);
     }
@@ -525,11 +533,7 @@ fn main() -> ! {
                             irq0_len_us, trace_main.len_us()).ok();
 
             for (n, v) in touch0.iter().enumerate() {
-                if opts.touch.led_mirror.value == opt::TouchLedMirror::MirrorOn {
-                    pmod0.led_set(n, (v >> 1) as i8);
-                } else {
-                    pmod0.led_auto(n);
-                }
+                pmod0.led_auto(n);
             }
 
             for (n, v) in touch1.iter().enumerate() {

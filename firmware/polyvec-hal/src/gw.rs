@@ -20,6 +20,7 @@ pub trait EurorackPmod {
     fn led_set(&self, index: usize, value: i8);
     fn led_auto(&self, index: usize);
     fn input(&self, index: usize) -> i16;
+    fn output(&self, index: usize, value: i16);
 }
 
 pub trait WavetableOscillator {
@@ -116,6 +117,19 @@ macro_rules! eurorack_pmod {
                     3 => self.csr_cal_in3().read().bits(),
                     _ => panic!("bad index"),
                 }) as i16
+            }
+
+            fn output(&self, index: usize, value: i16) {
+                match index {
+                    0 => self.csr_cal_out0().write(|w| unsafe { w.bits(value as u32) } ),
+                    1 => self.csr_cal_out1().write(|w| unsafe { w.bits(value as u32) } ),
+                    2 => self.csr_cal_out2().write(|w| unsafe { w.bits(value as u32) } ),
+                    3 => self.csr_cal_out3().write(|w| unsafe { w.bits(value as u32) } ),
+                    _ => panic!("bad index")
+                };
+                self.csr_out_mode().write(|w| unsafe { w.bits(
+                        self.csr_out_mode().read().bits() | (1 << index)
+                    ) } );
             }
         })+
     };

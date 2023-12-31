@@ -12,7 +12,7 @@ SOURCES_ROOT = os.path.join(
         )
 
 class EurorackPmod(Module, AutoCSR):
-    def __init__(self, platform, pads, w=16, output_csr_read_only=True, drive_shared_pads=None, external_reset=None, sim=False):
+    def __init__(self, platform, pads, w=16, drive_shared_pads=None, external_reset=None, sim=False):
         self.w = w
         self.cal_mem_file = os.path.join(SOURCES_ROOT, "cal/cal_mem.hex")
         self.codec_cfg_file = os.path.join(SOURCES_ROOT, "drivers/ak4619-cfg.hex")
@@ -30,10 +30,16 @@ class EurorackPmod(Module, AutoCSR):
         self.cal_in1 = Signal((w, True))
         self.cal_in2 = Signal((w, True))
         self.cal_in3 = Signal((w, True))
+        # Routed to MUX
         self.cal_out0 = Signal((w, True))
         self.cal_out1 = Signal((w, True))
         self.cal_out2 = Signal((w, True))
         self.cal_out3 = Signal((w, True))
+        # Routed to CODEC
+        self.cal_out_int0 = Signal((w, True))
+        self.cal_out_int1 = Signal((w, True))
+        self.cal_out_int2 = Signal((w, True))
+        self.cal_out_int3 = Signal((w, True))
 
         self.eeprom_mfg = Signal(8)
         self.eeprom_dev = Signal(8)
@@ -139,10 +145,10 @@ class EurorackPmod(Module, AutoCSR):
             o_cal_in1 = self.cal_in1,
             o_cal_in2 = self.cal_in2,
             o_cal_in3 = self.cal_in3,
-            i_cal_out0 = self.cal_out0,
-            i_cal_out1 = self.cal_out1,
-            i_cal_out2 = self.cal_out2,
-            i_cal_out3 = self.cal_out3,
+            i_cal_out0 = self.cal_out_int0,
+            i_cal_out1 = self.cal_out_int1,
+            i_cal_out2 = self.cal_out_int2,
+            i_cal_out3 = self.cal_out_int3,
 
             # Ports (serialized data fetched over I2C)
             o_eeprom_mfg = self.eeprom_mfg,
@@ -208,16 +214,12 @@ class EurorackPmod(Module, AutoCSR):
         self.csr_cal_in2 = CSRStatus(16)
         self.csr_cal_in3 = CSRStatus(16)
 
-        if output_csr_read_only:
-            self.csr_cal_out0 = CSRStatus(16)
-            self.csr_cal_out1 = CSRStatus(16)
-            self.csr_cal_out2 = CSRStatus(16)
-            self.csr_cal_out3 = CSRStatus(16)
-        else:
-            self.csr_cal_out0 = CSRStorage(16)
-            self.csr_cal_out1 = CSRStorage(16)
-            self.csr_cal_out2 = CSRStorage(16)
-            self.csr_cal_out3 = CSRStorage(16)
+        # 1 == manual CSR control, 0 == audio from cal_outX signals.
+        self.csr_out_mode = CSRStorage(4, reset=0x0)
+        self.csr_cal_out0 = CSRStorage(16)
+        self.csr_cal_out1 = CSRStorage(16)
+        self.csr_cal_out2 = CSRStorage(16)
+        self.csr_cal_out3 = CSRStorage(16)
 
         self.csr_eeprom_mfg = CSRStatus(8)
         self.csr_eeprom_dev = CSRStatus(8)
@@ -280,19 +282,28 @@ class EurorackPmod(Module, AutoCSR):
                 self.led5.eq(self.csr_led5.storage),
                 self.led6.eq(self.csr_led6.storage),
                 self.led7.eq(self.csr_led7.storage),
-        ]
 
-        if output_csr_read_only:
-            self.comb += [
-                    self.csr_cal_out0.status.eq(self.cal_out0),
-                    self.csr_cal_out1.status.eq(self.cal_out1),
-                    self.csr_cal_out2.status.eq(self.cal_out2),
-                    self.csr_cal_out3.status.eq(self.cal_out3),
-            ]
-        else:
-            self.comb += [
-                    self.cal_out0.eq(self.csr_cal_out0.storage),
-                    self.cal_out1.eq(self.csr_cal_out1.storage),
-                    self.cal_out2.eq(self.csr_cal_out2.storage),
-                    self.cal_out3.eq(self.csr_cal_out3.storage),
-            ]
+                If(self.csr_out_mode.storage[0],
+                    self.cal_out_int0.eq(self.csr_cal_out0.storage)
+                ).Else(
+                    self.cal_out_int0.eq(self.cal_out0)
+                ),
+
+                If(self.csr_out_mode.storage[1],
+                    self.cal_out_int1.eq(self.csr_cal_out1.storage)
+                ).Else(
+                    self.cal_out_int1.eq(self.cal_out1)
+                ),
+
+                If(self.csr_out_mode.storage[2],
+                    self.cal_out_int2.eq(self.csr_cal_out2.storage)
+                ).Else(
+                    self.cal_out_int2.eq(self.cal_out2)
+                ),
+
+                If(self.csr_out_mode.storage[3],
+                    self.cal_out_int3.eq(self.csr_cal_out3.storage)
+                ).Else(
+                    self.cal_out_int3.eq(self.cal_out3)
+                ),
+        ]
