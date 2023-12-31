@@ -357,8 +357,8 @@ impl State {
 
         // Hacky clock divider + master
         let pmod0 = &peripherals.EURORACK_PMOD0;
-        pmod0.output(0, if (self.counter & (1 << 5)) != 0 { 4000 } else { 0 });
-        pmod0.output(1, if (self.counter & (1 << 6)) == 0 { 4000 } else { 0 });
+        pmod0.output(0, if (self.counter & (1 << 6)) != 0 { 4000 } else { 0 });
+        pmod0.output(1, if (self.counter & (1 << 7)) == 0 { 4000 } else { 0 });
         self.counter += 1;
 
         self.last_control_type = Some(opts.touch.note_control.value);
