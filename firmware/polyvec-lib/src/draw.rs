@@ -350,7 +350,7 @@ mod tests {
     use super::*;
 
     use image::{ImageBuffer, RgbImage, Rgb};
-    use image::imageops::{rotate90, resize, FilterType};
+    use image::imageops::{resize, FilterType};
     use midi_types::MidiMessage;
 
     use crate::opt::Screen;

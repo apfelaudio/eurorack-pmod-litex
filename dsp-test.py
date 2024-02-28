@@ -5,4 +5,4 @@ import rtl.dsp
 
 import pytest
 
-pytest.main(["-x", "rtl/dsp.py", "-vv", "-s"])
+pytest.main(["-x", "rtl/dsp.py", "-vv", "-s", "-k", "fluid"])

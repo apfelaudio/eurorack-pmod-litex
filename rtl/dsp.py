@@ -521,7 +521,162 @@ def create_voices(soc, eurorack_pmod, n_voices, start, prefix):
     #for n in range(n_voices):
     #    soc.comb += getattr(eurorack_pmod, f"cal_out{n}").eq(getattr(cdc_vout0.source, f"out{n}"))
 
+class Fluid2D(Module):
+    def __init__(self, dw=32, fbits=16, size_x=64, size_y=64):
+        dtype = (dw, True) # Signed dw-wide entries.
+        sz_words = size_x * size_y
+
+        mem_u = Memory(dw, sz_words)
+        wport_u = mem_u.get_port(write_capable=True, mode=READ_FIRST)
+        rport_u = mem_u.get_port(mode=READ_FIRST)
+        self.specials += mem_u, wport_u, rport_u
+
+        mem_v = Memory(dw, sz_words)
+        wport_v = mem_v.get_port(write_capable=True, mode=READ_FIRST)
+        rport_v = mem_v.get_port(mode=READ_FIRST)
+        self.specials += mem_v, wport_v, rport_v
+
+        self.sample_strobe = Signal()
+        self.position = Signal(dw)
+        bits_x = math.ceil(math.log2(size_x))
+        bits_y = math.ceil(math.log2(size_y))
+        self.position_x = Signal(bits_x)
+        self.position_y = Signal(bits_y)
+        self.sv = Signal(dtype)
+
+        ru = Signal(dtype)
+        rv = Signal(dtype)
+
+        self.comb += [
+            ru.eq(rport_u.dat_r),
+            rv.eq(rport_v.dat_r),
+            # TODO: verify this...
+            self.position_x.eq(self.position[:bits_x]),
+            self.position_y.eq(self.position[bits_x:bits_x+bits_y]),
+        ]
+
+        fsm = FSM(reset_state="WAIT-STROBE")
+        self.submodules += fsm
+
+        fsm.act("WAIT-STROBE",
+            If(self.sample_strobe,
+               NextValue(self.position, 0),
+               NextState("SV0"),
+            )
+        )
+        fsm.act("SV0",
+            NextValue(rport_u.adr, self.position),
+            NextValue(rport_v.adr, self.position),
+            NextState("SV1"),
+        )
+        fsm.act("SV1",
+            NextValue(self.sv, rv - ru),
+            If(self.position == 0,
+                NextValue(rport_u.adr, self.position),
+            ).Else(
+                NextValue(rport_u.adr, self.position-1),
+            ),
+            NextState("SV2"),
+        )
+        fsm.act("SV2",
+            NextValue(self.sv, self.sv + (ru >> 2)),
+            If(self.position_x == 0,
+                NextValue(rport_u.adr, self.position),
+            ).Else(
+                NextValue(rport_u.adr, self.position+1),
+            ),
+            NextState("SV3"),
+        )
+        fsm.act("SV3",
+            NextValue(self.sv, self.sv + (ru >> 2)),
+            If(self.position_x == (size_x - 1),
+                NextValue(rport_u.adr, self.position),
+            ).Else(
+                NextValue(rport_u.adr, self.position+1),
+            ),
+            NextState("SV4"),
+        )
+        fsm.act("SV4",
+            NextValue(self.sv, self.sv + (ru >> 2)),
+            If(self.position_y == 0,
+                NextValue(rport_u.adr, self.position),
+            ).Else(
+                NextValue(rport_u.adr, self.position-size_x),
+            ),
+            NextState("SV5"),
+        )
+        fsm.act("SV5",
+            NextValue(self.sv, self.sv + (ru >> 2)),
+            If(self.position_y == (size_y - 1),
+                NextValue(rport_u.adr, self.position),
+            ).Else(
+                NextValue(rport_u.adr, self.position+size_x),
+            ),
+            NextState("SV6"),
+        )
+        fsm.act("SV6",
+            # Last index + multiply by 0.92, writeback
+            wport_v.dat_w.eq((15 * (self.sv + (ru >> 2))) >> 4),
+            wport_v.we.eq(1),
+            wport_v.adr.eq(self.position),
+
+            # Loop until matrix complete.
+            If(self.position == (size_x * size_y) - 1,
+                NextValue(self.position, 0),
+                NextState("SU0"),
+            ).Else(
+                NextValue(self.position, self.position+1),
+                NextState("SV0"),
+            ),
+        )
+        fsm.act("SU0",
+            NextValue(rport_u.adr, self.position),
+            NextValue(rport_v.adr, self.position),
+            NextState("SU1"),
+        )
+        fsm.act("SU1",
+            wport_u.dat_w.eq(ru + rv),
+            wport_u.adr.eq(self.position),
+            wport_u.we.eq(1),
+
+            # Loop until matrix complete.
+            If(self.position == (size_x * size_y) - 1,
+                NextValue(self.position, 0),
+                NextState("WAIT-STROBE"),
+            ).Else(
+                NextValue(self.position, self.position+1),
+                NextState("SU0"),
+            ),
+        )
+
 class TestDSP(unittest.TestCase):
+    def test_fluid2d(self):
+        dut = Fluid2D()
+
+        cd = ClockDomain("sys")
+        dut.clock_domains += cd
+
+        clk = Signal(name="clk")
+        rst = Signal(name="rst")
+
+        dut.comb += [
+            cd.clk.eq(clk),
+            cd.rst.eq(rst),
+        ]
+
+        print(verilog.convert(dut, ios={clk, rst}))
+
+        def generator(dut):
+            yield dut.sample_strobe.eq(0)
+            yield
+            yield dut.sample_strobe.eq(1)
+            yield
+            yield
+            for _ in range(8192*16):
+                yield
+
+        run_simulation(dut, generator(dut), vcd_name="test_fluid2d.vcd")
+
     def test_fixmac(self):
         dut = FixMac()
         #print(verilog.convert(dut))
