@@ -404,22 +404,19 @@ mod tests {
         voice_manager.tick(50u32, &opts);
         voice_manager.tick(200u32, &opts);
 
-        opts.screen.value = Screen::Adsr;
-        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
-        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
-        rz.save("screen_adsr.png").unwrap();
+        let screens = [
+            (Screen::Adsr, "adsr.png"),
+            (Screen::Scope, "scope.png"),
+            (Screen::Touch, "touch.png"),
+        ];
 
-        opts.screen.value = Screen::Scope;
-        disp.img = ImageBuffer::new(256, 64);
-        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
-        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
-        rz.save("screen_scope.png").unwrap();
-
-        opts.screen.value = Screen::Touch;
-        disp.img = ImageBuffer::new(256, 64);
-        draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
-        let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
-        rz.save("screen_touch.png").unwrap();
+        for (screen, filename) in screens {
+            opts.screen.value = screen;
+            disp.img = ImageBuffer::new(256, 64);
+            draw_main(&mut disp, opts.clone(), voice_manager.voices.clone(), &scope_samples, &touch, 1, 2).unwrap();
+            let rz = resize(&disp.img, 256*4, 64*4, FilterType::Nearest);
+            rz.save(filename).unwrap();
+        }
     }
 
     #[test]
