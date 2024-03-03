@@ -56,6 +56,7 @@ pub enum Screen {
     Adsr,
     Scope,
     Touch,
+    Fluid,
 }
 
 #[derive(Clone)]
@@ -80,6 +81,12 @@ pub struct TouchOptions {
     pub selected: Option<usize>,
     pub note_control: EnumOption<NoteControl>,
     pub led_mirror: EnumOption<TouchLedMirror>,
+}
+
+#[derive(Clone)]
+pub struct FluidOptions {
+    pub selected: Option<usize>,
+    pub fluid_speed: NumOption<u32>,
 }
 
 macro_rules! impl_option_view {
@@ -115,6 +122,9 @@ impl_option_view!(ScopeOptions,
 impl_option_view!(TouchOptions,
                   note_control, led_mirror);
 
+impl_option_view!(FluidOptions,
+                  fluid_speed);
+
 
 #[derive(Clone)]
 pub struct Options {
@@ -124,6 +134,7 @@ pub struct Options {
     pub adsr: AdsrOptions,
     pub scope: ScopeOptions,
     pub touch: TouchOptions,
+    pub fluid: FluidOptions,
 }
 
 impl Options {
@@ -199,6 +210,16 @@ impl Options {
                     name: "led".into(),
                     value: TouchLedMirror::MirrorOn,
                 },
+            },
+            fluid: FluidOptions {
+                selected: None,
+                fluid_speed: NumOption{
+                    name: "speed".into(),
+                    value: 1000,
+                    step: 100,
+                    min: 100,
+                    max: 5000,
+                },
             }
         }
     }
@@ -241,6 +262,7 @@ impl Options {
             Screen::Adsr => &self.adsr,
             Screen::Scope => &self.scope,
             Screen::Touch => &self.touch,
+            Screen::Fluid => &self.fluid,
         }
     }
 
@@ -250,6 +272,7 @@ impl Options {
             Screen::Adsr => &mut self.adsr,
             Screen::Scope => &mut self.scope,
             Screen::Touch => &mut self.touch,
+            Screen::Fluid => &mut self.fluid,
         }
     }
 }

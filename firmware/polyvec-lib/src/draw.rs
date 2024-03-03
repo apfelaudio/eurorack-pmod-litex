@@ -301,6 +301,27 @@ where
         }
     }
 
+    if opts.screen.value == opt::Screen::Fluid {
+        Rectangle::new(Point::new(0, 0), Size::new(128, 64))
+            .into_styled(thin_stroke)
+            .draw(d)?;
+
+        let n_width = 8;
+        for (n_touch, touch) in touch.iter().enumerate() {
+            let px = 8 + 16 * (n_touch % n_width) as i32;
+            let py = 8 + 16 * (n_touch / n_width) as i32;
+            Line::new(Point::new(px-1, py),
+                      Point::new(px+1, py))
+                      .into_styled(thin_stroke)
+                      .draw(d)?;
+            Line::new(Point::new(px, py-1),
+                      Point::new(px, py+1))
+                      .into_styled(thin_stroke)
+                      .draw(d)?;
+        }
+
+    }
+
     draw_options(d, &opts)?;
 
     let mut s: String<16> = String::new();
@@ -395,7 +416,7 @@ mod tests {
         let mut opts = opt::Options::new();
         let mut voice_manager = VoiceManager::new();
         let scope_samples = [0i16; 128];
-        let mut touch = [0u8; 8];
+        let mut touch = [0u8; 32];
         touch[1] = 128;
         touch[4] = 255;
 
@@ -408,6 +429,7 @@ mod tests {
             (Screen::Adsr, "adsr.png"),
             (Screen::Scope, "scope.png"),
             (Screen::Touch, "touch.png"),
+            (Screen::Fluid, "fluid.png"),
         ];
 
         for (screen, filename) in screens {
