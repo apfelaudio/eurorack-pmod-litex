@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 critical-section = { version = "1.0", optional = true }
-riscv = "0.10.1"
-riscv-rt = { version = "0.11.0", optional = true }
+riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
+riscv-rt = { path = "../riscv-rt", features = ["single-hart"], optional = true }
 vcell = "0.1.0"
 
 [features]

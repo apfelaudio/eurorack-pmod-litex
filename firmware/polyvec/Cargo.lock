@@ -390,7 +390,7 @@ name = "litex-pac"
 version = "0.1.0"
 dependencies = [
  "riscv",
- "riscv-rt 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "riscv-rt",
  "vcell",
 ]
 
@@ -519,7 +519,7 @@ dependencies = [
  "polyvec-hal",
  "polyvec-lib",
  "riscv",
- "riscv-rt 0.11.0",
+ "riscv-rt",
  "ssd1322",
  "strum",
  "strum_macros",
@@ -538,7 +538,7 @@ dependencies = [
  "micromath",
  "paste",
  "riscv",
- "riscv-rt 0.11.0",
+ "riscv-rt",
  "ufmt",
  "vexriscv",
 ]
@@ -609,12 +609,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "r0"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd7a31eed1591dcbc95d92ad7161908e72f4677f8fabf2a32ca49b4237cbf211"
-
-[[package]]
 name = "regex"
 version = "1.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -659,36 +653,13 @@ name = "riscv-rt"
 version = "0.11.0"
 dependencies = [
  "riscv",
- "riscv-rt-macros 0.2.0",
- "riscv-target",
-]
-
-[[package]]
-name = "riscv-rt"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "102c52c89defde24dedf9ac077cc69df77b85aa2400dd2d5aad6eea6a6a5c089"
-dependencies = [
- "r0",
- "riscv",
- "riscv-rt-macros 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "riscv-rt-macros",
  "riscv-target",
 ]
 
 [[package]]
 name = "riscv-rt-macros"
 version = "0.2.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "riscv-rt-macros"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f38509d7b17c2f604ceab3e5ff8ac97bb8cd2f544688c512be75c715edaf4daf"
 dependencies = [
  "proc-macro2",
  "quote",
