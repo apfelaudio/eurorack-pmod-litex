@@ -82,3 +82,6 @@
 [submodule "deps/pythondata-misc-tapcfg"]
 	path = deps/pythondata-misc-tapcfg
 	url = https://github.com/litex-hub/pythondata-misc-tapcfg.git
+[submodule "deps/litesdcard"]
+	path = deps/litesdcard
+	url = https://github.com/enjoy-digital/litesdcard

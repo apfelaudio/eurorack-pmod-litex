@@ -19,6 +19,8 @@ use irq::{handler, scope, scoped_interrupts};
 use litex_interrupt::return_as_is;
 use fixed::{FixedI32, types::extra::U16};
 
+use litex_sys::sdcard_init;
+
 use ssd1322 as oled;
 
 use polyvec_lib::voice::*;
@@ -443,6 +445,8 @@ fn main() -> ! {
         timer.delay_ms(100u32);
         usb_device_controller_reset_write(0);
         timer.delay_ms(100u32);
+
+        sdcard_init();
     }
 
     let pmod0 = peripherals.EURORACK_PMOD0;

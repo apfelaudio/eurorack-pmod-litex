@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 polyvec-lib = { path = "../polyvec-lib" }
 polyvec-hal = { path = "../polyvec-hal" }
+litex-sys = { path = "../deps/litex-sys" }
 riscv = { version = "0.10.1", features = ["critical-section-single-hart"] }
 riscv-rt = { path = "../deps/riscv-rt", features = ["single-hart"] }
 litex-hal = { path = "../deps/rust-litex-hal", features = ["gpio"] }

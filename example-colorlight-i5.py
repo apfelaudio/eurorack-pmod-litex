@@ -94,6 +94,13 @@ _io_eurolut_proto1 = [
         Subsignal("sw_n", Pins("E19"), Misc("PULLMODE=NONE")),
         IOStandard("LVCMOS33")
     ),
+    ("sdcard", 0,
+        Subsignal("data", Pins("J4 H4 E1 E4"), Misc("PULLMODE=UP")),
+        Subsignal("cmd",  Pins("F3"), Misc("PULLMODE=UP")),
+        Subsignal("clk",  Pins("H3")),
+        Subsignal("cd",   Pins("H5")),
+        IOStandard("LVCMOS33"),
+    ),
     # This is pin 27 of the B50612D (top ethernet PHY), which is pretty easy to
     # bodge over to the side of R106 closest to the ECP5 so we get multiboot.
     # I removed R86 so the PHY is disconnected.
@@ -299,6 +306,8 @@ def main():
     add_uart_midi(soc)
 
     add_encoder(soc)
+
+    soc.add_sdcard()
 
     soc.add_constant("FLASH_BOOT_ADDRESS", args.flash_boot)
 

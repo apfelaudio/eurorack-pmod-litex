@@ -31,5 +31,5 @@ cargo build --target=riscv32imac-unknown-none-elf --release
 ${OBJCOPY} target/riscv32imac-unknown-none-elf/release/polyvec_main -O binary $BUILD_DIR/rust-fw.bin
 
 cd $FW_ROOT/polyboot
-cargo build --target=riscv32imac-unknown-none-elf --release
+cargo build --target=riscv32imac-unknown-none-elf -vv --release
 ${OBJCOPY} target/riscv32imac-unknown-none-elf/release/polyboot -O binary $BUILD_DIR/bootloader.bin

@@ -1,0 +1,18 @@
+[package]
+name = "litex-sys"
+description = "Low-level bindings to LiteX C libraries"
+version = "0.1.0"
+authors = ["Sebastian Holzapfel <me@sebholzapfel.com>"]
+homepage = "https://github.com/schnommus/litex-sys"
+repository = "https://github.com/schnommus/litex-sys"
+license = "MIT"
+readme = "README.md"
+categories = ["external-ffi-bindings", "embedded", "no-std"]
+keywords = ["litex"]
+edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+cc = "1.0.90"
+bindgen = "0.69.4"
+glob = "0.3.1"
