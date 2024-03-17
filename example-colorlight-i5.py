@@ -272,6 +272,7 @@ def main():
     add_programn_gpio(soc)
 
     #add_usb(soc)
+    """
 
     add_audio_clocks(soc)
 
@@ -307,9 +308,11 @@ def main():
 
     add_encoder(soc)
 
-    soc.add_sdcard()
-
     soc.add_constant("FLASH_BOOT_ADDRESS", args.flash_boot)
+
+    """
+
+    soc.add_sdcard()
 
     builder = Builder(soc, **parser.builder_argdict)
     if args.build:
