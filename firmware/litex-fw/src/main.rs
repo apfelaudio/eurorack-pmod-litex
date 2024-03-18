@@ -21,6 +21,7 @@ use heapless::*;
 use litex_hal::prelude::*;
 use litex_hal::uart::UartError;
 use litex_pac as pac;
+use litex_sys;
 use riscv_rt::entry;
 use riscv;
 use core::arch::asm;
@@ -32,9 +33,6 @@ mod dsp;
 use log::*;
 use plic::*;
 use dsp::*;
-
-/// TODO: Modify `svd2rust` so this can be automatically forwarded?
-const SYSTEM_CLOCK_FREQUENCY: u32 = 75_000_000;
 
 /// Number of channels per section (4x input, 4x output)
 const N_CHANNELS: usize = 4;
@@ -66,7 +64,7 @@ static mut KARLSEN_LPF: Option<KarlsenLpf> = None;
 
 // Map the RISCV IRQ PLIC onto the fixed address present in the VexRISCV implementation.
 // TODO: ideally fetch this from the svf, its currently not exported by `svd2rust`!
-riscv::plic_context!(PLIC0, 0xf0c0_0000, 0, VexInterrupt, VexPriority);
+riscv::plic_context!(PLIC0, litex_sys::PLIC_BASE, 0, VexInterrupt, VexPriority);
 
 // Create the HAL bindings for the remaining LiteX peripherals.
 
@@ -180,7 +178,7 @@ fn main() -> ! {
     log::init(peripherals.UART);
     log::info!("hello from litex-fw!");
 
-    let mut timer = Timer::new(peripherals.TIMER0, SYSTEM_CLOCK_FREQUENCY);
+    let mut timer = Timer::new(peripherals.TIMER0, litex_sys::CONFIG_CLOCK_FREQUENCY);
 
     unsafe {
         // Create an instance of our DSP function which has some internal state.
